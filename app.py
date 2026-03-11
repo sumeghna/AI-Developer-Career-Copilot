@@ -1,4 +1,4 @@
-# app.py - Complete Version with Cohesive Modern UI
+# app.py - Complete Version with Resume Parser Integration
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -14,6 +14,7 @@ import random
 from src.github_analyzer import GitHubAnalyzer
 from src.skill_extractor import SkillExtractor
 from src.career_recommender import CareerRecommender
+from src.resume_parser import ResumeParser
 
 # Page configuration
 st.set_page_config(
@@ -578,6 +579,9 @@ if 'analysis_done' not in st.session_state:
     st.session_state.input_value = None
     st.session_state.error = None
     st.session_state.user_details = {}
+    st.session_state.education = []
+    st.session_state.experience_years = 0
+    st.session_state.resume_details = {}
 
 # Function to analyze GitHub profile
 def analyze_github_profile(username):
@@ -694,23 +698,53 @@ with st.sidebar:
         st.markdown("<h3>📄 Resume Upload</h3>", unsafe_allow_html=True)
         uploaded_file = st.file_uploader(
             "Upload your resume (PDF/DOCX)", 
-            type=['pdf', 'docx']
+            type=['pdf', 'docx'],
+            help="Upload your resume to extract skills automatically"
         )
         
         if uploaded_file:
             st.success(f"✅ Uploaded: {uploaded_file.name}")
             
             if st.button("📄 Analyze Resume", use_container_width=True):
-                with st.spinner("📄 Extracting skills..."):
-                    time.sleep(2)
-                    st.session_state.skills = ["Python", "Java", "SQL", "Spring", "AWS", "JavaScript", "React"]
-                    st.session_state.analysis_done = True
-                    st.session_state.input_method = "Resume"
-                    st.session_state.input_value = uploaded_file.name
-                    st.session_state.error = None
+                with st.spinner("🔍 Parsing resume and extracting skills..."):
+                    try:
+                        # Import the resume parser
+                        from src.resume_parser import ResumeParser
+                        
+                        # Determine file type
+                        file_type = "pdf" if uploaded_file.name.endswith('.pdf') else "docx"
+                        
+                        # Parse the resume
+                        parser = ResumeParser()
+                        result = parser.analyze_resume(uploaded_file, file_type)
+                        
+                        if "error" in result:
+                            st.session_state.error = result["error"]
+                            st.session_state.analysis_done = False
+                        else:
+                            # Store results in session state
+                            st.session_state.skills = result.get("skills", [])
+                            st.session_state.experience_level = result.get("experience_level", "Entry-Level")
+                            st.session_state.experience_years = result.get("experience_years", 0)
+                            st.session_state.education = result.get("education", [])
+                            st.session_state.analysis_done = True
+                            st.session_state.input_method = "Resume"
+                            st.session_state.input_value = uploaded_file.name
+                            st.session_state.error = None
+                            
+                            # Store additional resume details
+                            st.session_state.resume_details = {
+                                "has_email": result.get("has_email", False),
+                                "has_phone": result.get("has_phone", False),
+                                "skill_count": result.get("skill_count", 0)
+                            }
+                    except Exception as e:
+                        st.session_state.error = f"Error parsing resume: {str(e)}"
+                        st.session_state.analysis_done = False
+                    
                     st.rerun()
     
-    else:
+    else:  # Manual Entry
         st.markdown("<h3>✏️ Manual Entry</h3>", unsafe_allow_html=True)
         manual_skills = st.text_area(
             "List your skills (comma separated):",
@@ -766,7 +800,7 @@ elif not st.session_state.analysis_done:
                     <span class="feature-chip">🎯 Smart Matching</span>
                     <span class="feature-chip">📊 Deep Analysis</span>
                     <span class="feature-chip">🚀 Career Paths</span>
-                    <span class="feature-chip">💡 Skill Insights</span>
+                    <span class="feature-chip">📄 Resume Parsing</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -795,7 +829,7 @@ elif not st.session_state.analysis_done:
             """, unsafe_allow_html=True)
 
 else:
-    # Show analysis results
+    # Show analysis results based on input method
     if st.session_state.input_method == "GitHub" and st.session_state.user_details:
         
         exp_level = st.session_state.experience_level.lower()
@@ -833,15 +867,35 @@ else:
                             📂 {repo}
                         </div>
                     """, unsafe_allow_html=True)
-    else:
+    
+    elif st.session_state.input_method == "Resume":
         st.markdown(f"""
             <div class="info-box">
-                <strong>✅ Analysis Complete</strong><br>
-                <span style="font-size: 1.3rem;">{st.session_state.input_method} • {len(st.session_state.skills)} Skills Found</span>
+                <strong>✅ Resume Analysis Complete</strong><br>
+                <span style="font-size: 1.3rem;">{st.session_state.input_value}</span><br>
+                <span style="color: rgba(255,255,255,0.8);">Experience: {st.session_state.experience_level} ({st.session_state.experience_years} years)</span><br>
+                <span style="color: rgba(255,255,255,0.8);">Skills Found: {len(st.session_state.skills)}</span>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        # Show education if available
+        if st.session_state.education:
+            st.markdown("### 🎓 Education")
+            for edu in st.session_state.education:
+                if edu['institution']:
+                    st.markdown(f"- **{edu['institution']}**")
+                    if edu['details']:
+                        st.markdown(f"  {edu['details']}")
+    
+    else:  # Manual Entry
+        st.markdown(f"""
+            <div class="info-box">
+                <strong>✅ Manual Entry Complete</strong><br>
+                <span style="font-size: 1.3rem;">{st.session_state.input_value}</span>
             </div>
         """, unsafe_allow_html=True)
     
-    # Tabs
+    # Tabs for all methods
     tab1, tab2, tab3 = st.tabs(["📊 Overview", "🔧 Skills Deep Dive", "🎯 Career Paths"])
     
     with tab1:
@@ -869,21 +923,25 @@ else:
                 </div>
             """, unsafe_allow_html=True)
         with col4:
-            if st.session_state.total_commits > 500:
-                activity = "🔥 Very Active"
-            elif st.session_state.total_commits > 100:
-                activity = "📈 Active"
+            if st.session_state.input_method == "GitHub":
+                if st.session_state.total_commits > 500:
+                    activity = "🔥 Very Active"
+                elif st.session_state.total_commits > 100:
+                    activity = "📈 Active"
+                else:
+                    activity = "🌱 Growing"
             else:
-                activity = "🌱 Growing"
+                activity = "📊 Analyzed"
             st.markdown(f"""
                 <div class="metric-card">
-                    <div>GitHub Activity</div>
+                    <div>Activity</div>
                     <h3>{activity}</h3>
                 </div>
             """, unsafe_allow_html=True)
         
         st.markdown("<br>", unsafe_allow_html=True)
         
+        # Additional stats based on method
         if st.session_state.input_method == "GitHub":
             col1, col2, col3 = st.columns(3)
             with col1:
@@ -893,17 +951,32 @@ else:
             with col3:
                 st.metric("Complex Projects", st.session_state.complex_projects)
         
+        elif st.session_state.input_method == "Resume":
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Experience Years", st.session_state.experience_years)
+            with col2:
+                if st.session_state.resume_details:
+                    st.metric("Contact Info", "✅ Found" if st.session_state.resume_details.get('has_email') else "⚠️ Missing")
+        
         st.markdown("<br>", unsafe_allow_html=True)
         st.subheader("📋 Skills Overview")
         
         if st.session_state.skills:
+            # FIXED: Create categories properly without slicing error
+            categories_list = ['Language', 'Framework', 'Tool', 'Database', 'Cloud']
+            skill_categories = []
+            for i in range(len(st.session_state.skills)):
+                skill_categories.append(categories_list[i % len(categories_list)])
+            
             df = pd.DataFrame({
                 'Skill': st.session_state.skills,
-                'Category': ['Language', 'Framework', 'Tool', 'Database', 'Cloud'] * (len(st.session_state.skills)//5 + 1)
-            }[:len(st.session_state.skills)])
+                'Category': skill_categories
+            })
             st.dataframe(df, use_container_width=True, hide_index=True)
             
-            if st.session_state.languages:
+            # Language Distribution Chart (only for GitHub)
+            if st.session_state.input_method == "GitHub" and st.session_state.languages:
                 st.subheader("📊 Language Distribution")
                 lang_df = pd.DataFrame({
                     'Language': list(st.session_state.languages.keys()),
@@ -947,7 +1020,7 @@ else:
         st.subheader("🔧 Skill Proficiency Analysis")
         if st.session_state.skills:
             for i, skill in enumerate(st.session_state.skills[:10]):
-                if skill in st.session_state.proficiency:
+                if st.session_state.input_method == "GitHub" and skill in st.session_state.proficiency:
                     level = st.session_state.proficiency[skill].get('level', 'Beginner')
                     if level == "Expert":
                         prof = 95
@@ -1000,13 +1073,14 @@ else:
             st.session_state.skills = []
             st.session_state.languages = {}
             st.session_state.error = None
+            st.session_state.education = []
             st.rerun()
 
 # Footer
 st.markdown("""
     <div class="footer">
         <p style="font-size: 1.2rem; font-weight: 600;">🚀 AI Developer Career Copilot</p>
-        <p style="font-size: 1rem; opacity: 0.8;">Deep GitHub analysis that looks beyond just repositories</p>
+        <p style="font-size: 1rem; opacity: 0.8;">Deep GitHub analysis and intelligent resume parsing</p>
         <p style="font-size: 0.9rem; opacity: 0.6; margin-top: 1rem;">© 2025 • Powered by Advanced AI</p>
     </div>
 """, unsafe_allow_html=True)
