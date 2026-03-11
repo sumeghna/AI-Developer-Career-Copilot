@@ -1,12 +1,21 @@
-# app.py - MAIN FULL UI VERSION
+# app.py - Complete Version with Cohesive Modern UI
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import time
+import os
+from github import Github
+from github.GithubException import GithubException
 from datetime import datetime
 import random
 
-# Page configuration - MUST BE THE FIRST STREAMLIT COMMAND
+# Import from our src modules
+from src.github_analyzer import GitHubAnalyzer
+from src.skill_extractor import SkillExtractor
+from src.career_recommender import CareerRecommender
+
+# Page configuration
 st.set_page_config(
     page_title="AI Career Copilot",
     page_icon="🚀",
@@ -14,91 +23,537 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better styling
+# Custom CSS - Modern, Cohesive UI
 st.markdown("""
     <style>
-    /* Main header styling */
-    .main-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        padding: 2rem;
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    * {
+        font-family: 'Inter', sans-serif;
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+    
+    /* Animated gradient background for whole app */
+    .stApp {
+        background: linear-gradient(-45deg, #1a1a2e, #16213e, #0f3460, #1a1a2e);
+        background-size: 400% 400%;
+        animation: gradient 15s ease infinite;
+        min-height: 100vh;
+    }
+    
+    @keyframes gradient {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+    }
+    
+    /* Sidebar styling - matching glass morphism */
+    section[data-testid="stSidebar"] {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        border-right: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 10px 0 30px rgba(0, 0, 0, 0.2);
+    }
+    
+    section[data-testid="stSidebar"] .stMarkdown {
+        color: white;
+    }
+    
+    section[data-testid="stSidebar"] .stRadio > div {
+        background: rgba(255, 255, 255, 0.05);
         border-radius: 15px;
+        padding: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    section[data-testid="stSidebar"] .stRadio label {
+        color: white !important;
+        font-weight: 500;
+        padding: 0.5rem;
+        border-radius: 10px;
+        transition: all 0.3s ease;
+    }
+    
+    section[data-testid="stSidebar"] .stRadio label:hover {
+        background: rgba(255, 255, 255, 0.1);
+        transform: translateX(5px);
+    }
+    
+    section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label {
+        background: rgba(255, 255, 255, 0.05);
+        margin: 0.3rem 0;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    section[data-testid="stSidebar"] .stRadio div[role="radiogroup"] > label[data-checked="true"] {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        border: none;
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    /* Sidebar input fields */
+    section[data-testid="stSidebar"] .stTextInput input {
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 15px;
+        color: white;
+        padding: 0.8rem 1rem;
+        font-size: 1rem;
+    }
+    
+    section[data-testid="stSidebar"] .stTextInput input::placeholder {
+        color: rgba(255, 255, 255, 0.5);
+    }
+    
+    section[data-testid="stSidebar"] .stTextInput input:focus {
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+    }
+    
+    /* Sidebar buttons */
+    section[data-testid="stSidebar"] .stButton > button {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        border: none;
+        padding: 1rem 2rem;
+        border-radius: 15px;
+        font-weight: 600;
+        font-size: 1rem;
+        width: 100%;
+        transition: all 0.3s ease;
+        box-shadow: 0 5px 20px rgba(102, 126, 234, 0.3);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    
+    section[data-testid="stSidebar"] .stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.5);
+    }
+    
+    /* Sidebar headers */
+    section[data-testid="stSidebar"] h2 {
+        color: white;
+        font-size: 1.8rem;
+        font-weight: 700;
+        text-align: center;
+        margin-bottom: 2rem;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    section[data-testid="stSidebar"] h3 {
+        color: white;
+        font-size: 1.2rem;
+        font-weight: 600;
+        margin-bottom: 1rem;
+        opacity: 0.9;
+    }
+    
+    /* Sidebar divider */
+    section[data-testid="stSidebar"] hr {
+        border-color: rgba(255, 255, 255, 0.2);
+        margin: 2rem 0;
+    }
+    
+    /* Main content area - glass morphism */
+    .main-content {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border-radius: 30px;
+        padding: 2rem;
+        margin: 1rem;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+    }
+    
+    /* Main header */
+    .main-header {
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.9), rgba(118, 75, 162, 0.9));
+        backdrop-filter: blur(10px);
+        padding: 3rem;
+        border-radius: 30px;
         color: white;
         text-align: center;
         margin-bottom: 2rem;
-        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-    }
-    .main-header h1 {
-        font-size: 3rem;
-        margin-bottom: 0.5rem;
-        font-weight: 700;
-    }
-    .main-header p {
-        font-size: 1.2rem;
-        opacity: 0.95;
+        box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        border: 1px solid rgba(255,255,255,0.2);
+        position: relative;
+        overflow: hidden;
     }
     
-    /* Card styling */
-    .skill-card {
-        background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-        padding: 1.5rem;
-        border-radius: 15px;
-        margin: 0.5rem;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        transition: transform 0.3s ease;
+    .main-header::before {
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 70%);
+        animation: shine 8s infinite;
     }
-    .skill-card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+    
+    @keyframes shine {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    
+    .main-header h1 {
+        color: white;
+        font-size: 3.5rem;
+        margin-bottom: 0.5rem;
+        font-weight: 800;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        letter-spacing: -1px;
+        position: relative;
+        z-index: 1;
+    }
+    
+    .main-header p {
+        color: rgba(255,255,255,0.95);
+        font-size: 1.2rem;
+        position: relative;
+        z-index: 1;
+    }
+    
+    /* Welcome card */
+    .welcome-card {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        padding: 3rem;
+        border-radius: 40px;
+        text-align: center;
+        border: 1px solid rgba(255,255,255,0.2);
+        box-shadow: 0 25px 50px rgba(0,0,0,0.3);
+        margin: 2rem 0;
+    }
+    
+    .welcome-card h2 {
+        background: linear-gradient(135deg, #fff, #e0e0ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin-bottom: 1rem;
+    }
+    
+    .welcome-card p {
+        color: rgba(255,255,255,0.8);
+        font-size: 1.2rem;
+    }
+    
+    /* Feature chips */
+    .feature-chip {
+        display: inline-block;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(5px);
+        padding: 0.5rem 1.5rem;
+        border-radius: 60px;
+        color: white;
+        font-weight: 500;
+        margin: 0.3rem;
+        border: 1px solid rgba(255,255,255,0.2);
+        transition: all 0.3s ease;
+    }
+    
+    .feature-chip:hover {
+        background: rgba(102, 126, 234, 0.3);
+        transform: translateY(-2px);
+    }
+    
+    /* Feature cards */
+    .feature-card {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        padding: 2rem;
+        border-radius: 30px;
+        text-align: center;
+        border: 1px solid rgba(255,255,255,0.2);
+        transition: all 0.3s ease;
+        height: 100%;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    
+    .feature-card:hover {
+        transform: translateY(-10px);
+        background: rgba(255, 255, 255, 0.15);
+        box-shadow: 0 20px 40px rgba(102, 126, 234, 0.3);
+    }
+    
+    .feature-card h3 {
+        background: linear-gradient(135deg, #fff, #e0e0ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+    }
+    
+    .feature-card p {
+        color: rgba(255,255,255,0.8);
+        font-size: 1rem;
+        line-height: 1.5;
     }
     
     /* Metric cards */
     .metric-card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 15px;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        padding: 2rem;
+        border-radius: 25px;
         text-align: center;
-        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        border-left: 5px solid #667eea;
-    }
-    .metric-card h3 {
-        color: #667eea;
-        font-size: 2rem;
-        margin: 0.5rem 0;
+        border: 1px solid rgba(255,255,255,0.2);
+        transition: all 0.3s ease;
+        height: 100%;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
     }
     
-    /* Progress bar styling */
-    .stProgress > div > div > div > div {
+    .metric-card:hover {
+        transform: translateY(-5px);
+        background: rgba(255, 255, 255, 0.15);
+        box-shadow: 0 15px 35px rgba(102, 126, 234, 0.3);
+    }
+    
+    .metric-card div:first-child {
+        color: rgba(255,255,255,0.7);
+        font-size: 0.9rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 0.5rem;
+    }
+    
+    .metric-card h3 {
+        background: linear-gradient(135deg, #fff, #e0e0ff);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        font-size: 2.5rem;
+        font-weight: 800;
+        margin: 0.3rem 0;
+    }
+    
+    /* Info box */
+    .info-box {
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
+        padding: 2rem;
+        border-radius: 25px;
+        margin: 1.5rem 0;
+        border: 1px solid rgba(255,255,255,0.2);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        color: white;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .info-box::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 5px;
+        height: 100%;
         background: linear-gradient(135deg, #667eea, #764ba2);
     }
     
-    /* Button styling */
-    .stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    .info-box strong {
         color: white;
-        border: none;
-        padding: 0.75rem 2rem;
-        border-radius: 50px;
-        font-weight: 600;
-        transition: all 0.3s ease;
-        width: 100%;
-    }
-    .stButton > button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        font-size: 1.3rem;
+        display: block;
+        margin-bottom: 1rem;
     }
     
-    /* Footer styling */
+    /* Tabs styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 1rem;
+        background: rgba(255,255,255,0.1);
+        backdrop-filter: blur(10px);
+        padding: 0.8rem;
+        border-radius: 60px;
+        border: 1px solid rgba(255,255,255,0.2);
+        margin-bottom: 2rem;
+    }
+    
+    .stTabs [data-baseweb="tab"] {
+        height: 3rem;
+        background: transparent;
+        padding: 0 2rem;
+        border-radius: 60px;
+        transition: all 0.3s ease;
+        color: white !important;
+    }
+    
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #667eea, #764ba2) !important;
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .stTabs [data-baseweb="tab"] p {
+        color: white !important;
+        font-weight: 600;
+        font-size: 1rem;
+    }
+    
+    /* Dataframe styling */
+    .dataframe {
+        background: rgba(255,255,255,0.1);
+        backdrop-filter: blur(5px);
+        border-radius: 20px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.2);
+        color: white;
+    }
+    
+    .dataframe th {
+        background: rgba(102, 126, 234, 0.3);
+        color: white;
+        font-weight: 600;
+        padding: 15px;
+    }
+    
+    .dataframe td {
+        color: white;
+        padding: 12px 15px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    /* Progress bar */
+    .stProgress > div > div > div > div {
+        background: linear-gradient(90deg, #667eea, #764ba2, #9f7aea);
+        background-size: 200% 200%;
+        animation: gradient 3s ease infinite;
+        border-radius: 10px;
+        height: 8px;
+    }
+    
+    /* Repository items */
+    .repo-item {
+        background: rgba(255,255,255,0.1);
+        backdrop-filter: blur(5px);
+        padding: 0.8rem 1.2rem;
+        border-radius: 15px;
+        margin: 0.5rem 0;
+        border: 1px solid rgba(255,255,255,0.2);
+        transition: all 0.3s ease;
+        color: white;
+    }
+    
+    .repo-item:hover {
+        background: rgba(102, 126, 234, 0.3);
+        transform: translateX(10px);
+    }
+    
+    /* Skill cards */
+    .skill-card {
+        background: rgba(255,255,255,0.1);
+        backdrop-filter: blur(5px);
+        padding: 1.5rem;
+        border-radius: 20px;
+        margin: 1rem 0;
+        border: 1px solid rgba(255,255,255,0.2);
+        transition: all 0.3s ease;
+        color: white;
+    }
+    
+    .skill-card:hover {
+        transform: scale(1.02);
+        background: rgba(102, 126, 234, 0.2);
+    }
+    
+    .skill-card span {
+        color: white !important;
+    }
+    
+    /* Experience badge */
+    .exp-badge {
+        display: inline-block;
+        padding: 0.5rem 1.5rem;
+        border-radius: 60px;
+        font-weight: 700;
+        font-size: 1rem;
+        margin-right: 0.8rem;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        border: 1px solid rgba(255,255,255,0.3);
+    }
+    
+    .exp-novice { 
+        background: linear-gradient(135deg, #64748b, #475569);
+        color: white;
+    }
+    .exp-beginner { 
+        background: linear-gradient(135deg, #60a5fa, #3b82f6);
+        color: white;
+    }
+    .exp-intermediate { 
+        background: linear-gradient(135deg, #2dd4bf, #14b8a6);
+        color: white;
+    }
+    .exp-advanced { 
+        background: linear-gradient(135deg, #c084fc, #a855f7);
+        color: white;
+    }
+    
+    /* Footer */
     .footer {
         text-align: center;
         padding: 2rem;
-        background: linear-gradient(135deg, #667eea20 0%, #764ba220 100%);
-        border-radius: 15px;
         margin-top: 3rem;
+        background: rgba(0,0,0,0.3);
+        backdrop-filter: blur(10px);
+        border-radius: 30px;
+        border: 1px solid rgba(255,255,255,0.1);
+        color: white;
+    }
+    
+    .footer p {
+        color: rgba(255,255,255,0.8);
+        margin: 0.3rem 0;
+    }
+    
+    /* Error box */
+    .error-box {
+        background: rgba(229, 62, 62, 0.2);
+        backdrop-filter: blur(10px);
+        padding: 1.5rem;
+        border-radius: 20px;
+        margin: 1rem 0;
+        border: 1px solid #fc8181;
+        color: white;
+    }
+    
+    /* Metrics in columns */
+    div[data-testid="column"] {
+        background: transparent;
+    }
+    
+    /* Remove white backgrounds */
+    .stApp .stMarkdown, .stApp .stText, .stApp .stJson {
+        color: white;
+    }
+    
+    /* Override any white backgrounds */
+    .element-container, .stMarkdown, .stText {
+        background: transparent !important;
+    }
+    
+    /* Style for regular text */
+    p, span, div:not(.stButton) {
+        color: rgba(255,255,255,0.9);
+    }
+    
+    /* Headers */
+    h1, h2, h3, h4, h5, h6 {
+        color: white !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# Header Section
+# Main content wrapper
+st.markdown('<div class="main-content">', unsafe_allow_html=True)
+
+# Header
 st.markdown("""
     <div class="main-header">
         <h1>🚀 AI Developer Career Copilot</h1>
@@ -106,374 +561,455 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Sidebar for input
+# Initialize session state
+if 'analysis_done' not in st.session_state:
+    st.session_state.analysis_done = False
+    st.session_state.skills = []
+    st.session_state.proficiency = {}
+    st.session_state.languages = {}
+    st.session_state.repo_count = 0
+    st.session_state.original_repos = 0
+    st.session_state.total_commits = 0
+    st.session_state.complex_projects = 0
+    st.session_state.experience_level = "Beginner"
+    st.session_state.experience_description = ""
+    st.session_state.follower_count = 0
+    st.session_state.input_method = None
+    st.session_state.input_value = None
+    st.session_state.error = None
+    st.session_state.user_details = {}
+
+# Function to analyze GitHub profile
+def analyze_github_profile(username):
+    """Fetch real data from GitHub API with deep analysis"""
+    try:
+        token = os.environ.get('GITHUB_TOKEN')
+        
+        if not token:
+            return {"error": "GitHub token not found. Please set the GITHUB_TOKEN environment variable."}
+        
+        analyzer = GitHubAnalyzer(token)
+        
+        user_info = analyzer.get_user_info(username)
+        if "error" in user_info:
+            return {"error": user_info["error"]}
+        
+        analysis_result = analyzer.analyze_repositories_deep(username)
+        if "error" in analysis_result:
+            return {"error": analysis_result["error"]}
+        
+        skill_data = analyzer.extract_skills_with_context(analysis_result)
+        
+        return {
+            "success": True,
+            "skills": skill_data["skills"],
+            "proficiency": skill_data.get("proficiency", {}),
+            "experience_level": skill_data.get("experience_level", "Beginner"),
+            "experience_description": skill_data.get("experience_description", ""),
+            "languages": analysis_result.get("languages", {}),
+            "repo_count": analysis_result.get("total_repos", 0),
+            "original_repos": analysis_result.get("original_repos", 0),
+            "total_commits": skill_data.get("total_commits", 0),
+            "complex_projects": analysis_result.get("complex_projects", 0),
+            "follower_count": user_info.get("followers", 0),
+            "name": user_info.get("name", "N/A"),
+            "bio": user_info.get("bio", "N/A"),
+            "company": user_info.get("company", "N/A"),
+            "location": user_info.get("location", "N/A"),
+            "repo_names": [r['name'] for r in analysis_result.get("repos", [])[:5]]
+        }
+        
+    except GithubException as e:
+        if e.status == 404:
+            return {"error": f"User '{username}' not found on GitHub"}
+        elif e.status == 401:
+            return {"error": "Invalid GitHub token. Please check your token."}
+        elif e.status == 403:
+            return {"error": "API rate limit exceeded. Try again later."}
+        else:
+            return {"error": f"GitHub API error: {str(e)}"}
+    except Exception as e:
+        return {"error": f"Error: {str(e)}"}
+
+# Sidebar
 with st.sidebar:
     st.image("https://img.icons8.com/fluency/96/artificial-intelligence.png", width=80)
-    st.markdown("<h2 style='color: white; text-align: center;'>Input Options</h2>", 
-                unsafe_allow_html=True)
+    st.markdown("<h2>✨ AI Copilot</h2>", unsafe_allow_html=True)
     
     input_method = st.radio(
         "Choose analysis method:",
-        ["GitHub Profile", "Resume Upload", "Manual Entry"],
+        ["🔗 GitHub Profile", "📄 Resume Upload", "✏️ Manual Entry"],
         index=0
     )
     
-    if input_method == "GitHub Profile":
+    st.markdown("<hr>", unsafe_allow_html=True)
+    
+    # Clean the method name for internal use
+    method_map = {
+        "🔗 GitHub Profile": "GitHub Profile",
+        "📄 Resume Upload": "Resume Upload",
+        "✏️ Manual Entry": "Manual Entry"
+    }
+    selected_method = method_map[input_method]
+    
+    if selected_method == "GitHub Profile":
+        st.markdown("<h3>🔗 GitHub Analysis</h3>", unsafe_allow_html=True)
         github_username = st.text_input("Enter GitHub username:", placeholder="e.g., octocat")
-        analyze_btn = st.button("🔍 Analyze GitHub Profile", use_container_width=True)
         
-    elif input_method == "Resume Upload":
+        if st.button("🚀 Analyze Profile", use_container_width=True):
+            if github_username:
+                with st.spinner(f"🔮 Deep analyzing {github_username}..."):
+                    result = analyze_github_profile(github_username)
+                    
+                    if "error" in result:
+                        st.session_state.error = result["error"]
+                        st.session_state.analysis_done = False
+                    else:
+                        st.session_state.skills = result["skills"]
+                        st.session_state.proficiency = result["proficiency"]
+                        st.session_state.languages = result["languages"]
+                        st.session_state.repo_count = result["repo_count"]
+                        st.session_state.original_repos = result["original_repos"]
+                        st.session_state.total_commits = result["total_commits"]
+                        st.session_state.complex_projects = result["complex_projects"]
+                        st.session_state.experience_level = result["experience_level"]
+                        st.session_state.experience_description = result["experience_description"]
+                        st.session_state.follower_count = result["follower_count"]
+                        st.session_state.analysis_done = True
+                        st.session_state.input_method = "GitHub"
+                        st.session_state.input_value = github_username
+                        st.session_state.error = None
+                        st.session_state.user_details = {
+                            "name": result.get("name", "N/A"),
+                            "bio": result.get("bio", "N/A"),
+                            "company": result.get("company", "N/A"),
+                            "location": result.get("location", "N/A"),
+                            "repo_names": result.get("repo_names", [])
+                        }
+                    st.rerun()
+            else:
+                st.error("⚠️ Enter username")
+    
+    elif selected_method == "Resume Upload":
+        st.markdown("<h3>📄 Resume Upload</h3>", unsafe_allow_html=True)
         uploaded_file = st.file_uploader(
             "Upload your resume (PDF/DOCX)", 
-            type=['pdf', 'docx'],
-            help="Upload your resume to extract skills automatically"
+            type=['pdf', 'docx']
         )
+        
         if uploaded_file:
             st.success(f"✅ Uploaded: {uploaded_file.name}")
-        analyze_btn = st.button("📄 Analyze Resume", use_container_width=True)
-        
+            
+            if st.button("📄 Analyze Resume", use_container_width=True):
+                with st.spinner("📄 Extracting skills..."):
+                    time.sleep(2)
+                    st.session_state.skills = ["Python", "Java", "SQL", "Spring", "AWS", "JavaScript", "React"]
+                    st.session_state.analysis_done = True
+                    st.session_state.input_method = "Resume"
+                    st.session_state.input_value = uploaded_file.name
+                    st.session_state.error = None
+                    st.rerun()
+    
     else:
-        st.info("Enter your skills manually")
+        st.markdown("<h3>✏️ Manual Entry</h3>", unsafe_allow_html=True)
         manual_skills = st.text_area(
             "List your skills (comma separated):",
-            placeholder="Python, JavaScript, React, Docker..."
+            placeholder="e.g., Python, JavaScript, React",
+            height=150
         )
-        analyze_btn = st.button("✨ Analyze Skills", use_container_width=True)
+        
+        if st.button("✨ Analyze Skills", use_container_width=True):
+            if manual_skills:
+                with st.spinner("✨ Processing..."):
+                    time.sleep(1)
+                    skills_list = [skill.strip() for skill in manual_skills.split(',')]
+                    st.session_state.skills = skills_list[:10]
+                    st.session_state.analysis_done = True
+                    st.session_state.input_method = "Manual"
+                    st.session_state.input_value = f"{len(skills_list)} skills"
+                    st.session_state.error = None
+                    st.rerun()
+            else:
+                st.error("⚠️ Enter skills")
     
-    st.markdown("---")
+    st.markdown("<hr>", unsafe_allow_html=True)
     st.markdown(
-        "<p style='color: white; text-align: center; font-size: 0.9rem;'>"
-        "Powered by AI • v1.0.0</p>",
+        "<p style='text-align: center; opacity: 0.7; font-size: 0.9rem;'>"
+        "Powered by Advanced AI<br>v2.0.0</p>",
         unsafe_allow_html=True
     )
 
 # Main content area
-if 'analyze_btn' in locals() and analyze_btn:
-    with st.spinner("🔮 Analyzing your profile... This may take a moment."):
-        # Progress bar animation
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        # Simulate analysis steps
-        steps = [
-            "Fetching GitHub data...",
-            "Analyzing repositories...",
-            "Extracting skills...",
-            "Matching with career database...",
-            "Generating recommendations..."
-        ]
-        
-        for i, step in enumerate(steps):
-            status_text.text(f"Step {i+1}/5: {step}")
-            for j in range(20):
-                progress_bar.progress(i*20 + j + 1)
-                import time
-                time.sleep(0.01)
-        
-        status_text.text("✅ Analysis complete!")
-        time.sleep(0.5)
-        status_text.empty()
-        progress_bar.empty()
+if st.session_state.error:
+    st.markdown(f"""
+        <div class="error-box">
+            <strong>❌ Error</strong><br>
+            <span>{st.session_state.error}</span>
+        </div>
+    """, unsafe_allow_html=True)
     
-    # Create tabs for different views
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Overview", "🔧 Skills", "🎯 Careers", "📈 Roadmap"])
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        if st.button("🔄 Try Again", use_container_width=True):
+            st.session_state.error = None
+            st.rerun()
+
+elif not st.session_state.analysis_done:
+    # Welcome message
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.markdown("""
+            <div class="welcome-card">
+                <h2>🚀 Welcome to Your AI Career Copilot</h2>
+                <p style="margin-bottom: 2rem;">Unlock your true potential with deep GitHub analysis</p>
+                <div style="display: flex; justify-content: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 3rem;">
+                    <span class="feature-chip">🎯 Smart Matching</span>
+                    <span class="feature-chip">📊 Deep Analysis</span>
+                    <span class="feature-chip">🚀 Career Paths</span>
+                    <span class="feature-chip">💡 Skill Insights</span>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        col_a, col_b, col_c = st.columns(3)
+        with col_a:
+            st.markdown("""
+                <div class="feature-card">
+                    <h3>🔗 GitHub</h3>
+                    <p>Deep analysis of repositories, commits, and contribution patterns to assess your true skill level</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with col_b:
+            st.markdown("""
+                <div class="feature-card">
+                    <h3>📄 Resume</h3>
+                    <p>Extract and analyze skills from your resume with intelligent pattern matching</p>
+                </div>
+            """, unsafe_allow_html=True)
+        with col_c:
+            st.markdown("""
+                <div class="feature-card">
+                    <h3>✏️ Manual</h3>
+                    <p>Quick skill analysis with personalized career recommendations</p>
+                </div>
+            """, unsafe_allow_html=True)
+
+else:
+    # Show analysis results
+    if st.session_state.input_method == "GitHub" and st.session_state.user_details:
+        
+        exp_level = st.session_state.experience_level.lower()
+        badge_class = f"exp-{exp_level}" if exp_level in ['novice', 'beginner', 'intermediate', 'advanced'] else "exp-beginner"
+        
+        st.markdown(f"""
+            <div class="info-box">
+                <strong>✨ GitHub Analysis Complete</strong>
+                <div style="display: flex; align-items: center; gap: 1.5rem; margin: 1.5rem 0;">
+                    <div style="background: linear-gradient(135deg, #667eea, #764ba2); width: 70px; height: 70px; border-radius: 35px; display: flex; align-items: center; justify-content: center; font-size: 2.5rem;">👤</div>
+                    <div>
+                        <span style="font-size: 2rem; font-weight: 700; color: white;">{st.session_state.user_details.get('name', 'N/A')}</span><br>
+                        <span style="color: rgba(255,255,255,0.7); font-size: 1.1rem;">@{st.session_state.input_value}</span>
+                    </div>
+                </div>
+                <p style="color: rgba(255,255,255,0.8); font-size: 1.1rem; margin: 1rem 0;">{st.session_state.user_details.get('bio', 'No bio provided')}</p>
+                <div style="display: flex; gap: 2rem; margin: 1rem 0;">
+                    <span>📍 {st.session_state.user_details.get('location', 'N/A')}</span>
+                    <span>🏢 {st.session_state.user_details.get('company', 'N/A')}</span>
+                </div>
+                <div style="margin-top: 1.5rem;">
+                    <span class="exp-badge {badge_class}">{st.session_state.experience_level}</span>
+                    <span style="color: rgba(255,255,255,0.8);">{st.session_state.experience_description}</span>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
+        
+        if st.session_state.user_details.get('repo_names'):
+            st.markdown("### 📁 Featured Repositories")
+            cols = st.columns(2)
+            for i, repo in enumerate(st.session_state.user_details['repo_names']):
+                with cols[i % 2]:
+                    st.markdown(f"""
+                        <div class="repo-item">
+                            📂 {repo}
+                        </div>
+                    """, unsafe_allow_html=True)
+    else:
+        st.markdown(f"""
+            <div class="info-box">
+                <strong>✅ Analysis Complete</strong><br>
+                <span style="font-size: 1.3rem;">{st.session_state.input_method} • {len(st.session_state.skills)} Skills Found</span>
+            </div>
+        """, unsafe_allow_html=True)
+    
+    # Tabs
+    tab1, tab2, tab3 = st.tabs(["📊 Overview", "🔧 Skills Deep Dive", "🎯 Career Paths"])
     
     with tab1:
-        # Metrics Row
         col1, col2, col3, col4 = st.columns(4)
-        
         with col1:
-            st.markdown("""
+            st.markdown(f"""
                 <div class="metric-card">
-                    <div>🎯 Skills Detected</div>
-                    <h3>24</h3>
-                    <div style='color: #4CAF50;'>↑ +5 new</div>
+                    <div>Skills Detected</div>
+                    <h3>{len(st.session_state.skills)}</h3>
                 </div>
             """, unsafe_allow_html=True)
-        
         with col2:
-            st.markdown("""
+            match_count = min(3, len(st.session_state.skills)) if st.session_state.skills else 0
+            st.markdown(f"""
                 <div class="metric-card">
-                    <div>💼 Career Matches</div>
-                    <h3>8</h3>
-                    <div style='color: #4CAF50;'>3 top matches</div>
+                    <div>Career Matches</div>
+                    <h3>{match_count}</h3>
                 </div>
             """, unsafe_allow_html=True)
-        
         with col3:
-            st.markdown("""
+            st.markdown(f"""
                 <div class="metric-card">
-                    <div>⭐ Experience Level</div>
-                    <h3>Intermediate</h3>
-                    <div>3-5 years</div>
+                    <div>Experience Level</div>
+                    <h3>{st.session_state.experience_level}</h3>
                 </div>
             """, unsafe_allow_html=True)
-        
         with col4:
-            st.markdown("""
+            if st.session_state.total_commits > 500:
+                activity = "🔥 Very Active"
+            elif st.session_state.total_commits > 100:
+                activity = "📈 Active"
+            else:
+                activity = "🌱 Growing"
+            st.markdown(f"""
                 <div class="metric-card">
-                    <div>📊 Market Demand</div>
-                    <h3>High</h3>
-                    <div style='color: #4CAF50;'>↑ +15%</div>
+                    <div>GitHub Activity</div>
+                    <h3>{activity}</h3>
                 </div>
             """, unsafe_allow_html=True)
         
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # Skill Distribution Chart
-        col1, col2 = st.columns([3, 2])
+        if st.session_state.input_method == "GitHub":
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Total Repos", st.session_state.repo_count, delta=f"Original: {st.session_state.original_repos}")
+            with col2:
+                st.metric("Total Commits", f"{st.session_state.total_commits:,}")
+            with col3:
+                st.metric("Complex Projects", st.session_state.complex_projects)
         
-        with col1:
-            st.subheader("📊 Skill Distribution")
-            
-            # Sample data for demonstration
-            skills_df = pd.DataFrame({
-                'Category': ['Languages', 'Frameworks', 'Databases', 'DevOps', 'Frontend'],
-                'Count': [8, 6, 3, 4, 3]
-            })
-            
-            fig = px.pie(
-                skills_df, 
-                values='Count', 
-                names='Category',
-                color_discrete_sequence=px.colors.sequential.Purples_r,
-                hole=0.4
-            )
-            fig.update_layout(
-                showlegend=True,
-                height=400,
-                margin=dict(t=0, b=0, l=0, r=0)
-            )
-            st.plotly_chart(fig, use_container_width=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.subheader("📋 Skills Overview")
         
-        with col2:
-            st.subheader("🔥 Hot Skills")
+        if st.session_state.skills:
+            df = pd.DataFrame({
+                'Skill': st.session_state.skills,
+                'Category': ['Language', 'Framework', 'Tool', 'Database', 'Cloud'] * (len(st.session_state.skills)//5 + 1)
+            }[:len(st.session_state.skills)])
+            st.dataframe(df, use_container_width=True, hide_index=True)
             
-            hot_skills = [
-                ("Python", 95),
-                ("React", 88),
-                ("TypeScript", 82),
-                ("Docker", 78),
-                ("AWS", 75),
-                ("GraphQL", 70)
-            ]
-            
-            for skill, demand in hot_skills:
+            if st.session_state.languages:
+                st.subheader("📊 Language Distribution")
+                lang_df = pd.DataFrame({
+                    'Language': list(st.session_state.languages.keys()),
+                    'Count': list(st.session_state.languages.values())
+                }).sort_values('Count', ascending=False).head(8)
+                
+                fig = px.bar(
+                    lang_df, 
+                    x='Language', 
+                    y='Count',
+                    color='Count',
+                    color_continuous_scale=['#667eea', '#9f7aea', '#764ba2'],
+                    text='Count'
+                )
+                
+                fig.update_traces(
+                    texttemplate='%{text}',
+                    textposition='outside',
+                    marker_line_width=0,
+                    opacity=0.9,
+                    textfont_color='white'
+                )
+                
+                fig.update_layout(
+                    height=450,
+                    xaxis_title="",
+                    yaxis_title="Repositories",
+                    font=dict(color='white'),
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    showlegend=False,
+                    xaxis=dict(tickfont=dict(color='white')),
+                    yaxis=dict(tickfont=dict(color='white'))
+                )
+                
+                st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No skills detected")
+    
+    with tab2:
+        st.subheader("🔧 Skill Proficiency Analysis")
+        if st.session_state.skills:
+            for i, skill in enumerate(st.session_state.skills[:10]):
+                if skill in st.session_state.proficiency:
+                    level = st.session_state.proficiency[skill].get('level', 'Beginner')
+                    if level == "Expert":
+                        prof = 95
+                    elif level == "Intermediate":
+                        prof = 75
+                    else:
+                        prof = 55
+                else:
+                    prof = 70 + (i * 5) % 25
+                
                 st.markdown(f"""
-                    <div style="margin: 10px 0;">
-                        <div style="display: flex; justify-content: space-between;">
-                            <span>{skill}</span>
-                            <span>{demand}%</span>
+                    <div class="skill-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 1.3rem; font-weight: 600;">{skill}</span>
+                            <span style="font-size: 1.5rem; font-weight: 700; color: #667eea;">{prof}%</span>
                         </div>
-                        <div style="background: #e0e0e0; height: 8px; border-radius: 4px;">
-                            <div style="background: linear-gradient(90deg, #667eea, #764ba2); 
-                                      width: {demand}%; height: 8px; border-radius: 4px;"></div>
+                        <div style="background: rgba(255,255,255,0.2); height: 10px; border-radius: 5px; margin-top: 1rem;">
+                            <div style="background: linear-gradient(90deg, #667eea, #764ba2); width: {prof}%; height: 10px; border-radius: 5px;"></div>
                         </div>
                     </div>
                 """, unsafe_allow_html=True)
-    
-    with tab2:
-        st.subheader("🔧 Your Skills Analysis")
-        
-        # Skill categories
-        categories = ['Programming Languages', 'Frameworks', 'Databases', 'DevOps Tools', 'Frontend']
-        
-        for category in categories:
-            with st.expander(f"📁 {category}", expanded=True):
-                col1, col2, col3 = st.columns(3)
-                
-                # Sample skills
-                skills_sample = {
-                    'Programming Languages': ['Python', 'JavaScript', 'TypeScript', 'Java', 'Go'],
-                    'Frameworks': ['React', 'Django', 'Flask', 'Express', 'Spring'],
-                    'Databases': ['PostgreSQL', 'MongoDB', 'Redis', 'MySQL'],
-                    'DevOps Tools': ['Docker', 'Kubernetes', 'Jenkins', 'AWS', 'GitHub Actions'],
-                    'Frontend': ['HTML5', 'CSS3', 'Tailwind', 'Bootstrap', 'Material-UI']
-                }
-                
-                skills = skills_sample.get(category, [])
-                for i, skill in enumerate(skills):
-                    with col1 if i % 3 == 0 else col2 if i % 3 == 1 else col3:
-                        proficiency = random.randint(60, 95)
-                        st.markdown(f"""
-                            <div class="skill-card">
-                                <h4>{skill}</h4>
-                                <div style="margin-top: 10px;">
-                                    <div style="background: #e0e0e0; height: 6px; border-radius: 3px;">
-                                        <div style="background: linear-gradient(90deg, #667eea, #764ba2); 
-                                                  width: {proficiency}%; height: 6px; border-radius: 3px;"></div>
-                                    </div>
-                                    <p style="margin-top: 5px;">Proficiency: {proficiency}%</p>
-                                </div>
-                            </div>
-                        """, unsafe_allow_html=True)
+        else:
+            st.info("No skills to display")
     
     with tab3:
-        st.subheader("🎯 Career Matches")
-        
-        # Career matches
-        careers = [
-            {
-                "title": "Full Stack Developer",
-                "match": 92,
-                "salary": "$85k - $120k",
-                "demand": "High",
-                "skills_match": ["✅ Python", "✅ React", "✅ SQL", "❌ TypeScript", "❌ GraphQL"],
-                "color": "#667eea"
-            },
-            {
-                "title": "Data Engineer",
-                "match": 87,
-                "salary": "$95k - $135k",
-                "demand": "Very High",
-                "skills_match": ["✅ Python", "✅ SQL", "✅ Pandas", "❌ Spark", "❌ Airflow"],
-                "color": "#764ba2"
-            },
-            {
-                "title": "DevOps Engineer",
-                "match": 78,
-                "salary": "$100k - $145k",
-                "demand": "High",
-                "skills_match": ["✅ Docker", "✅ Linux", "✅ Python", "❌ K8s", "❌ Terraform"],
-                "color": "#4CAF50"
-            }
-        ]
-        
-        for career in careers:
-            with st.container():
-                col1, col2 = st.columns([1, 3])
-                
-                with col1:
-                    st.markdown(f"""
-                        <div style="background: {career['color']}; 
-                                  padding: 1rem; border-radius: 10px; 
-                                  text-align: center; color: white;">
-                            <h2>{career['match']}%</h2>
-                            <p>Match</p>
+        st.subheader("🎯 Career Recommendations")
+        recommender = CareerRecommender()
+        recommendations = recommender.recommend(st.session_state.skills)
+        if recommendations:
+            for career in recommendations:
+                st.markdown(f"""
+                    <div style="background: rgba(255,255,255,0.1); backdrop-filter: blur(5px); padding: 2rem; border-radius: 25px; margin: 1.5rem 0; border: 1px solid rgba(255,255,255,0.2);">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <h4 style="color: white; font-size: 1.5rem; font-weight: 700;">{career['title']}</h4>
+                            <span style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 0.5rem 1.5rem; border-radius: 60px; font-weight: 700;">{career['match']}% Match</span>
                         </div>
-                    """, unsafe_allow_html=True)
-                
-                with col2:
-                    st.markdown(f"""
-                        <div style="background: #f5f7fa; padding: 1rem; border-radius: 10px;">
-                            <h3>{career['title']}</h3>
-                            <p>💰 {career['salary']} • 📈 Demand: {career['demand']}</p>
-                            <p>{' • '.join(career['skills_match'])}</p>
-                        </div>
-                    """, unsafe_allow_html=True)
-                
-                st.markdown("<br>", unsafe_allow_html=True)
+                        <p style="color: #667eea; font-size: 1.2rem; margin: 1rem 0;">💰 {career['salary']}</p>
+                        <p style="color: white;"><span style="font-weight: 600;">Required:</span> {', '.join(career['required'])}</p>
+                        <p style="color: rgba(255,255,255,0.7);"><span style="font-weight: 600;">Bonus:</span> {', '.join(career['bonus'])}</p>
+                    </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("No career matches found. Try adding more skills!")
     
-    with tab4:
-        st.subheader("📈 Your Learning Roadmap")
-        
-        # Timeline
-        roadmap_data = pd.DataFrame({
-            'Month': ['Month 1-2', 'Month 3-4', 'Month 5-6', 'Month 7-8'],
-            'Focus': ['TypeScript & Advanced React', 
-                     'GraphQL & State Management',
-                     'Docker & Deployment',
-                     'System Design & Interview Prep'],
-            'Progress': [30, 0, 0, 0]
-        })
-        
-        fig = go.Figure(data=[go.Table(
-            header=dict(values=['Timeline', 'Focus Area', 'Progress'],
-                       fill_color='#667eea',
-                       font=dict(color='white', size=14),
-                       align='left'),
-            cells=dict(values=[roadmap_data.Month, 
-                             roadmap_data.Focus,
-                             [f"{p}% Complete" for p in roadmap_data.Progress]],
-                      fill_color='#f5f7fa',
-                      align='left'))
-        ])
-        
-        fig.update_layout(height=300, margin=dict(t=0, b=0, l=0, r=0))
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Recommended courses
-        st.subheader("📚 Recommended Learning Resources")
-        
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.markdown("""
-                <div class="skill-card">
-                    <h4>TypeScript Masterclass</h4>
-                    <p>Udemy • 20 hours</p>
-                    <p>⭐⭐⭐⭐⭐ (4.8)</p>
-                    <p style="color: #667eea;">Free • 67% off</p>
-                </div>
-            """, unsafe_allow_html=True)
-        
-        with col2:
-            st.markdown("""
-                <div class="skill-card">
-                    <h4>GraphQL with React</h4>
-                    <p>Coursera • 15 hours</p>
-                    <p>⭐⭐⭐⭐ (4.6)</p>
-                    <p style="color: #667eea;">$49.99</p>
-                </div>
-            """, unsafe_allow_html=True)
-        
-        with col3:
-            st.markdown("""
-                <div class="skill-card">
-                    <h4>Docker & Kubernetes</h4>
-                    <p>Pluralsight • 25 hours</p>
-                    <p>⭐⭐⭐⭐⭐ (4.9)</p>
-                    <p style="color: #667eea;">$29/month</p>
-                </div>
-            """, unsafe_allow_html=True)
-
-else:
-    # Welcome message when no analysis done
-    col1, col2, col3 = st.columns([1, 2, 1])
-    
+    # Reset button
+    col1, col2, col3 = st.columns([1,1,1])
     with col2:
-        st.image("https://img.icons8.com/fluency/240/artificial-intelligence.png", width=200)
-        st.markdown("""
-            <div style="text-align: center; padding: 2rem;">
-                <h2>Welcome to Your AI Career Copilot! 🚀</h2>
-                <p style="font-size: 1.2rem; color: #666;">
-                    Get started by entering your GitHub username or uploading your resume.
-                    Our AI will analyze your skills and provide personalized career recommendations.
-                </p>
-            </div>
-        """, unsafe_allow_html=True)
-        
-        # Features grid
-        col_a, col_b, col_c = st.columns(3)
-        
-        with col_a:
-            st.markdown("""
-                <div style="text-align: center; padding: 1rem;">
-                    <h3>🔍 Analyze</h3>
-                    <p>GitHub & Resume analysis</p>
-                </div>
-            """, unsafe_allow_html=True)
-        
-        with col_b:
-            st.markdown("""
-                <div style="text-align: center; padding: 1rem;">
-                    <h3>🎯 Match</h3>
-                    <p>Career recommendations</p>
-                </div>
-            """, unsafe_allow_html=True)
-        
-        with col_c:
-            st.markdown("""
-                <div style="text-align: center; padding: 1rem;">
-                    <h3>📈 Grow</h3>
-                    <p>Personalized learning paths</p>
-                </div>
-            """, unsafe_allow_html=True)
+        if st.button("🔄 New Analysis", use_container_width=True):
+            st.session_state.analysis_done = False
+            st.session_state.skills = []
+            st.session_state.languages = {}
+            st.session_state.error = None
+            st.rerun()
 
 # Footer
 st.markdown("""
     <div class="footer">
-        <p>🚀 AI Developer Career Copilot • Built with Streamlit • © 2025</p>
-        <p style="font-size: 0.9rem; opacity: 0.8;">Your personalized AI career guide</p>
+        <p style="font-size: 1.2rem; font-weight: 600;">🚀 AI Developer Career Copilot</p>
+        <p style="font-size: 1rem; opacity: 0.8;">Deep GitHub analysis that looks beyond just repositories</p>
+        <p style="font-size: 0.9rem; opacity: 0.6; margin-top: 1rem;">© 2025 • Powered by Advanced AI</p>
     </div>
 """, unsafe_allow_html=True)
+
+# Close main content wrapper
+st.markdown('</div>', unsafe_allow_html=True)
