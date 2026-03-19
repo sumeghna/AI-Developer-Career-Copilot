@@ -1,4 +1,4 @@
-# app.py - Complete Version with Resume Parser Integration
+# app.py - Complete Version with Learning Path Generator
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -9,12 +9,18 @@ from github import Github
 from github.GithubException import GithubException
 from datetime import datetime
 import random
+from dotenv import load_dotenv
 
 # Import from our src modules
 from src.github_analyzer import GitHubAnalyzer
 from src.skill_extractor import SkillExtractor
 from src.career_recommender import CareerRecommender
 from src.resume_parser import ResumeParser
+from src.job_market import JobMarketAnalyzer
+from src.learning_path import LearningPathGenerator
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Page configuration
 st.set_page_config(
@@ -298,7 +304,7 @@ st.markdown("""
         line-height: 1.5;
     }
     
-    /* Metric cards */
+    /* Metric cards - consistent styling */
     .metric-card {
         background: rgba(255, 255, 255, 0.1);
         backdrop-filter: blur(10px);
@@ -330,7 +336,7 @@ st.markdown("""
         background: linear-gradient(135deg, #fff, #e0e0ff);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
-        font-size: 2.5rem;
+        font-size: 2.5rem !important;
         font-weight: 800;
         margin: 0.3rem 0;
     }
@@ -446,6 +452,23 @@ st.markdown("""
         transform: translateX(10px);
     }
     
+    /* Complex project items */
+    .complex-project {
+        background: rgba(102, 126, 234, 0.2);
+        backdrop-filter: blur(5px);
+        padding: 0.8rem 1.2rem;
+        border-radius: 15px;
+        margin: 0.5rem 0;
+        border-left: 3px solid #667eea;
+        transition: all 0.3s ease;
+        color: white;
+    }
+    
+    .complex-project:hover {
+        transform: translateX(10px);
+        background: rgba(102, 126, 234, 0.3);
+    }
+    
     /* Skill cards */
     .skill-card {
         background: rgba(255,255,255,0.1);
@@ -496,6 +519,69 @@ st.markdown("""
         color: white;
     }
     
+    /* Course cards for learning path */
+    .course-card {
+        background: rgba(255,255,255,0.1);
+        backdrop-filter: blur(5px);
+        padding: 1.2rem;
+        border-radius: 15px;
+        margin: 0.8rem 0;
+        border: 1px solid rgba(255,255,255,0.2);
+        transition: all 0.3s ease;
+    }
+    
+    .course-card:hover {
+        transform: translateX(5px);
+        background: rgba(102, 126, 234, 0.2);
+        border-left: 3px solid #667eea;
+    }
+    
+    .platform-badge {
+        display: inline-block;
+        padding: 0.2rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+    }
+    
+    .platform-youtube {
+        background: #ff0000;
+        color: white;
+    }
+    .platform-udemy {
+        background: #a435f0;
+        color: white;
+    }
+    .platform-coursera {
+        background: #0056d2;
+        color: white;
+    }
+    .platform-pluralsight {
+        background: #f05b2c;
+        color: white;
+    }
+    
+    /* Timeline styling */
+    .timeline-item {
+        display: flex;
+        align-items: center;
+        margin: 1rem 0;
+    }
+    
+    .timeline-week {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        width: 60px;
+        height: 60px;
+        border-radius: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        margin-right: 1rem;
+        flex-shrink: 0;
+    }
+    
     /* Footer */
     .footer {
         text-align: center;
@@ -524,29 +610,28 @@ st.markdown("""
         color: white;
     }
     
-    /* Metrics in columns */
-    div[data-testid="column"] {
-        background: transparent;
-    }
-    
-    /* Remove white backgrounds */
-    .stApp .stMarkdown, .stApp .stText, .stApp .stJson {
+    /* Market trend cards */
+    .trend-card {
+        background: rgba(255,255,255,0.1);
+        backdrop-filter: blur(5px);
+        padding: 1.2rem;
+        border-radius: 15px;
+        border: 1px solid rgba(255,255,255,0.2);
+        margin: 0.5rem 0;
         color: white;
     }
     
-    /* Override any white backgrounds */
-    .element-container, .stMarkdown, .stText {
-        background: transparent !important;
+    .demand-high {
+        color: #4ade80;
+        font-weight: 600;
     }
-    
-    /* Style for regular text */
-    p, span, div:not(.stButton) {
-        color: rgba(255,255,255,0.9);
+    .demand-medium {
+        color: #fbbf24;
+        font-weight: 600;
     }
-    
-    /* Headers */
-    h1, h2, h3, h4, h5, h6 {
-        color: white !important;
+    .demand-low {
+        color: #f87171;
+        font-weight: 600;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -572,7 +657,8 @@ if 'analysis_done' not in st.session_state:
     st.session_state.original_repos = 0
     st.session_state.total_commits = 0
     st.session_state.complex_projects = 0
-    st.session_state.experience_level = "Beginner"
+    st.session_state.complex_repo_names = []
+    st.session_state.experience_level = "🆕 Novice"
     st.session_state.experience_description = ""
     st.session_state.follower_count = 0
     st.session_state.input_method = None
@@ -582,6 +668,8 @@ if 'analysis_done' not in st.session_state:
     st.session_state.education = []
     st.session_state.experience_years = 0
     st.session_state.resume_details = {}
+    st.session_state.learning_path = None
+    st.session_state.target_career = None
 
 # Function to analyze GitHub profile
 def analyze_github_profile(username):
@@ -608,13 +696,14 @@ def analyze_github_profile(username):
             "success": True,
             "skills": skill_data["skills"],
             "proficiency": skill_data.get("proficiency", {}),
-            "experience_level": skill_data.get("experience_level", "Beginner"),
+            "experience_level": skill_data.get("experience_level", "🆕 Novice"),
             "experience_description": skill_data.get("experience_description", ""),
             "languages": analysis_result.get("languages", {}),
             "repo_count": analysis_result.get("total_repos", 0),
             "original_repos": analysis_result.get("original_repos", 0),
             "total_commits": skill_data.get("total_commits", 0),
             "complex_projects": analysis_result.get("complex_projects", 0),
+            "complex_repo_names": analysis_result.get("complex_repo_names", []),
             "follower_count": user_info.get("followers", 0),
             "name": user_info.get("name", "N/A"),
             "bio": user_info.get("bio", "N/A"),
@@ -676,6 +765,7 @@ with st.sidebar:
                         st.session_state.original_repos = result["original_repos"]
                         st.session_state.total_commits = result["total_commits"]
                         st.session_state.complex_projects = result["complex_projects"]
+                        st.session_state.complex_repo_names = result.get("complex_repo_names", [])
                         st.session_state.experience_level = result["experience_level"]
                         st.session_state.experience_description = result["experience_description"]
                         st.session_state.follower_count = result["follower_count"]
@@ -769,7 +859,7 @@ with st.sidebar:
     st.markdown("<hr>", unsafe_allow_html=True)
     st.markdown(
         "<p style='text-align: center; opacity: 0.7; font-size: 0.9rem;'>"
-        "Powered by Advanced AI<br>v2.0.0</p>",
+        "Powered by Advanced AI<br>v4.0.0</p>",
         unsafe_allow_html=True
     )
 
@@ -801,6 +891,8 @@ elif not st.session_state.analysis_done:
                     <span class="feature-chip">📊 Deep Analysis</span>
                     <span class="feature-chip">🚀 Career Paths</span>
                     <span class="feature-chip">📄 Resume Parsing</span>
+                    <span class="feature-chip">📈 Market Trends</span>
+                    <span class="feature-chip">📚 Learning Paths</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -810,21 +902,21 @@ elif not st.session_state.analysis_done:
             st.markdown("""
                 <div class="feature-card">
                     <h3>🔗 GitHub</h3>
-                    <p>Deep analysis of repositories, commits, and contribution patterns to assess your true skill level</p>
+                    <p>Deep analysis of repositories, commits, and contribution patterns</p>
                 </div>
             """, unsafe_allow_html=True)
         with col_b:
             st.markdown("""
                 <div class="feature-card">
                     <h3>📄 Resume</h3>
-                    <p>Extract and analyze skills from your resume with intelligent pattern matching</p>
+                    <p>Extract and analyze skills from your resume with intelligent parsing</p>
                 </div>
             """, unsafe_allow_html=True)
         with col_c:
             st.markdown("""
                 <div class="feature-card">
-                    <h3>✏️ Manual</h3>
-                    <p>Quick skill analysis with personalized career recommendations</p>
+                    <h3>📚 Learning</h3>
+                    <p>Personalized learning paths with course recommendations</p>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -832,8 +924,10 @@ else:
     # Show analysis results based on input method
     if st.session_state.input_method == "GitHub" and st.session_state.user_details:
         
+        # Clean level for badge class (remove emojis)
         exp_level = st.session_state.experience_level.lower()
-        badge_class = f"exp-{exp_level}" if exp_level in ['novice', 'beginner', 'intermediate', 'advanced'] else "exp-beginner"
+        clean_level = exp_level.replace("🔥 ", "").replace("📈 ", "").replace("🌱 ", "").replace("🆕 ", "")
+        badge_class = f"exp-{clean_level}" if clean_level in ['novice', 'beginner', 'intermediate', 'advanced'] else "exp-beginner"
         
         st.markdown(f"""
             <div class="info-box">
@@ -857,6 +951,7 @@ else:
             </div>
         """, unsafe_allow_html=True)
         
+        # Display top repositories
         if st.session_state.user_details.get('repo_names'):
             st.markdown("### 📁 Featured Repositories")
             cols = st.columns(2)
@@ -867,6 +962,21 @@ else:
                             📂 {repo}
                         </div>
                     """, unsafe_allow_html=True)
+        
+        # Display complex projects
+        if st.session_state.complex_projects > 0:
+            st.markdown("### 🏗️ Complex Projects")
+            st.markdown(f"<p style='color: rgba(255,255,255,0.8);'>Found {st.session_state.complex_projects} large-scale projects (>1MB) showing depth of experience</p>", unsafe_allow_html=True)
+            
+            if st.session_state.complex_repo_names:
+                cols = st.columns(2)
+                for i, repo in enumerate(st.session_state.complex_repo_names[:6]):  # Show up to 6
+                    with cols[i % 2]:
+                        st.markdown(f"""
+                            <div class="complex-project">
+                                🚀 {repo}
+                            </div>
+                        """, unsafe_allow_html=True)
     
     elif st.session_state.input_method == "Resume":
         st.markdown(f"""
@@ -895,8 +1005,8 @@ else:
             </div>
         """, unsafe_allow_html=True)
     
-    # Tabs for all methods
-    tab1, tab2, tab3 = st.tabs(["📊 Overview", "🔧 Skills Deep Dive", "🎯 Career Paths"])
+    # Tabs for all methods - Now with 5 tabs including Learning Path
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Overview", "🔧 Skills Deep Dive", "🎯 Career Paths", "📈 Market Trends", "📚 Learning Path"])
     
     with tab1:
         col1, col2, col3, col4 = st.columns(4)
@@ -919,7 +1029,7 @@ else:
             st.markdown(f"""
                 <div class="metric-card">
                     <div>Experience Level</div>
-                    <h3>{st.session_state.experience_level}</h3>
+                    <h3 style="font-size: 2rem;">{st.session_state.experience_level}</h3>
                 </div>
             """, unsafe_allow_html=True)
         with col4:
@@ -963,7 +1073,7 @@ else:
         st.subheader("📋 Skills Overview")
         
         if st.session_state.skills:
-            # FIXED: Create categories properly without slicing error
+            # Create categories properly
             categories_list = ['Language', 'Framework', 'Tool', 'Database', 'Cloud']
             skill_categories = []
             for i in range(len(st.session_state.skills)):
@@ -1065,6 +1175,249 @@ else:
         else:
             st.info("No career matches found. Try adding more skills!")
     
+    with tab4:
+        st.subheader("📈 Job Market Trends")
+        
+        # Initialize job market analyzer
+        market = JobMarketAnalyzer()
+        
+        if st.session_state.skills:
+            # Get market summary
+            summary = market.get_market_summary(st.session_state.skills)
+            
+            # Display market summary metrics
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Avg. Growth Rate", f"{summary['avg_growth']}%", delta="YoY")
+            with col2:
+                st.metric("Total Job Openings", f"{summary['total_jobs']:,}")
+            with col3:
+                st.metric("High Demand Skills", summary['high_demand_count'])
+            
+            st.markdown(f"### Market Outlook: {summary['outlook']}")
+            st.markdown("---")
+            
+            # Skill trends table
+            st.subheader("📊 Skill Demand Trends")
+            trends = market.get_skill_trends(st.session_state.skills)
+            
+            for trend in trends[:8]:  # Show top 8
+                demand_class = "demand-high" if "High" in trend['demand'] else "demand-medium" if "Stable" in trend['demand'] else "demand-low"
+                st.markdown(f"""
+                    <div class="trend-card">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 1.2rem; font-weight: 600;">{trend['skill']}</span>
+                            <span class="{demand_class}">{trend['demand']}</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; margin-top: 0.5rem;">
+                            <span>Growth: {trend['growth']}% YoY</span>
+                            <span>{trend['jobs_count']:,} jobs</span>
+                        </div>
+                    </div>
+                """, unsafe_allow_html=True)
+            
+            # Salary comparison for top roles
+            st.markdown("---")
+            st.subheader("💰 Salary Comparison by Role")
+            
+            # Get top career matches
+            recommender = CareerRecommender()
+            top_careers = recommender.recommend(st.session_state.skills)[:3]
+            
+            if top_careers:
+                salary_data = []
+                for career in top_careers:
+                    role = career['title']
+                    salary_prog = market.get_salary_by_experience(role)
+                    if salary_prog:
+                        salary_data.append({
+                            'Role': role,
+                            'Entry': salary_prog['entry'],
+                            'Mid-Level': salary_prog['mid'],
+                            'Senior': salary_prog['senior']
+                        })
+                
+                if salary_data:
+                    # Create salary progression chart
+                    df_salary = pd.DataFrame(salary_data)
+                    fig = go.Figure()
+                    
+                    for level in ['Entry', 'Mid-Level', 'Senior']:
+                        fig.add_trace(go.Bar(
+                            name=level,
+                            x=df_salary['Role'],
+                            y=df_salary[level],
+                            text=[f"${x:,.0f}" for x in df_salary[level]],
+                            textposition='auto',
+                        ))
+                    
+                    fig.update_layout(
+                        barmode='group',
+                        height=400,
+                        title="Salary Progression by Role",
+                        yaxis_title="Annual Salary (USD)",
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        font=dict(color='white'),
+                        legend=dict(font=dict(color='white'))
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+            
+            # Location comparison
+            st.markdown("---")
+            st.subheader("🌍 Top Locations by Salary")
+            
+            if top_careers:
+                role = top_careers[0]['title']
+                locations = market.get_top_locations_for_role(role)
+                
+                if locations:
+                    df_locations = pd.DataFrame(locations)
+                    fig = px.bar(
+                        df_locations,
+                        x='location',
+                        y='avg_salary',
+                        color='avg_salary',
+                        color_continuous_scale=['#667eea', '#764ba2'],
+                        title=f"Average Salary for {role} by Location",
+                        labels={'avg_salary': 'Salary (USD)', 'location': 'Location'}
+                    )
+                    
+                    fig.update_traces(
+                        texttemplate='$%{y:,.0f}',
+                        textposition='outside',
+                    )
+                    
+                    fig.update_layout(
+                        height=400,
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        font=dict(color='white'),
+                        xaxis=dict(tickfont=dict(color='white')),
+                        yaxis=dict(tickfont=dict(color='white'))
+                    )
+                    
+                    st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.info("No skills to analyze. Please add skills first to see market trends.")
+    
+    with tab5:
+        st.subheader("📚 Personalized Learning Path")
+        
+        if st.session_state.skills:
+            # Initialize learning path generator
+            learner = LearningPathGenerator()
+            
+            # Get top career matches to suggest target
+            recommender = CareerRecommender()
+            top_careers = recommender.recommend(st.session_state.skills)
+            
+            # Let user select target career
+            career_options = [c['title'] for c in top_careers] if top_careers else []
+            career_options.append("General Skill Advancement")
+            
+            selected_career = st.selectbox(
+                "🎯 Select your target career:",
+                career_options,
+                index=0
+            )
+            
+            if st.button("🚀 Generate Learning Path", use_container_width=True):
+                with st.spinner("Creating personalized learning path..."):
+                    target = selected_career if selected_career != "General Skill Advancement" else None
+                    learning_path = learner.generate_learning_path(
+                        st.session_state.skills, 
+                        target,
+                        st.session_state.proficiency if st.session_state.input_method == "GitHub" else None
+                    )
+                    st.session_state.learning_path = learning_path
+                    st.session_state.target_career = selected_career
+            
+            # Display learning path if generated
+            if st.session_state.learning_path:
+                lp = st.session_state.learning_path
+                
+                # Metrics
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Skills to Learn", lp['total_skills'])
+                with col2:
+                    st.metric("Recommended Courses", lp['total_courses'])
+                with col3:
+                    st.metric("Est. Duration", f"{lp['estimated_weeks']} weeks")
+                
+                st.markdown("---")
+                
+                # Learning path by skill
+                for item in lp['learning_path']:
+                    with st.expander(f"📘 {item['skill']} - Current: {item['current_level'].title()} → Next: {item['next_level'].title()}"):
+                        st.markdown(f"**Estimated time:** {item['estimated_hours']} hours")
+                        
+                        for course in item['recommended_courses']:
+                            # Determine platform class
+                            platform_class = "platform-youtube" if "youtube" in course['url'].lower() or "youtu.be" in course['url'].lower() else \
+                                            "platform-udemy" if "udemy" in course['url'].lower() else \
+                                            "platform-coursera" if "coursera" in course['url'].lower() else \
+                                            "platform-pluralsight" if "pluralsight" in course['url'].lower() else ""
+                            
+                            st.markdown(f"""
+                                <div class="course-card">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-size: 1.1rem; font-weight: 600;">{course['name']}</span>
+                                        <span class="platform-badge {platform_class}">{course['platform']}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; margin-top: 0.5rem;">
+                                        <span>⏱️ {course['duration']}</span>
+                                        <span>{'🆓 Free' if course.get('free', False) else '💰 Paid'}</span>
+                                    </div>
+                                    <div style="margin-top: 0.5rem;">
+                                        <a href="{course['url']}" target="_blank" style="color: #667eea; text-decoration: none;">🔗 View Course →</a>
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
+                
+                st.markdown("---")
+                st.subheader("🗓️ Your 8-Week Learning Timeline")
+                
+                # Display timeline
+                for item in lp['timeline']:
+                    st.markdown(f"""
+                        <div class="timeline-item">
+                            <div class="timeline-week">Week {item['week']}</div>
+                            <div style="flex-grow: 1;">
+                                <strong style="color: white;">{item['skill']}</strong><br>
+                                <span style="color: rgba(255,255,255,0.7);">{item['course']} ({item['platform']})</span>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                
+                # Free resources section
+                st.markdown("---")
+                st.subheader("🆓 Free Resources")
+                
+                free_resources = []
+                for skill in st.session_state.skills[:3]:
+                    free_resources.extend(learner.get_free_resources(skill))
+                
+                if free_resources:
+                    for resource in free_resources[:5]:
+                        st.markdown(f"""
+                            <div class="course-card">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="font-weight: 600;">{resource['name']}</span>
+                                    <span class="platform-badge platform-youtube">FREE</span>
+                                </div>
+                                <div>
+                                    <a href="{resource['url']}" target="_blank" style="color: #667eea;">Watch now →</a>
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("No free resources found for your skills.")
+        else:
+            st.info("No skills to analyze. Please add skills first to generate a learning path.")
+    
     # Reset button
     col1, col2, col3 = st.columns([1,1,1])
     with col2:
@@ -1074,13 +1427,15 @@ else:
             st.session_state.languages = {}
             st.session_state.error = None
             st.session_state.education = []
+            st.session_state.complex_repo_names = []
+            st.session_state.learning_path = None
             st.rerun()
 
 # Footer
 st.markdown("""
     <div class="footer">
         <p style="font-size: 1.2rem; font-weight: 600;">🚀 AI Developer Career Copilot</p>
-        <p style="font-size: 1rem; opacity: 0.8;">Deep GitHub analysis and intelligent resume parsing</p>
+        <p style="font-size: 1rem; opacity: 0.8;">Deep GitHub analysis • Intelligent resume parsing • Real-time market trends • Personalized learning paths</p>
         <p style="font-size: 0.9rem; opacity: 0.6; margin-top: 1rem;">© 2025 • Powered by Advanced AI</p>
     </div>
 """, unsafe_allow_html=True)
