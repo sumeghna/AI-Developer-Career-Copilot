@@ -1,3 +1,4 @@
+# app.py - Complete Version with Learning Path Generator
 # app.py - Complete Version with Fixed GitHub Analysis
 import streamlit as st
 import pandas as pd
@@ -20,6 +21,10 @@ from src.skill_extractor import SkillExtractor
 from src.career_recommender import CareerRecommender
 from src.resume_parser import ResumeParser
 from src.job_market import JobMarketAnalyzer
+from src.learning_path import LearningPathGenerator
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Page configuration
 st.set_page_config(
@@ -518,6 +523,69 @@ st.markdown("""
         color: white;
     }
     
+    /* Course cards for learning path */
+    .course-card {
+        background: rgba(255,255,255,0.1);
+        backdrop-filter: blur(5px);
+        padding: 1.2rem;
+        border-radius: 15px;
+        margin: 0.8rem 0;
+        border: 1px solid rgba(255,255,255,0.2);
+        transition: all 0.3s ease;
+    }
+    
+    .course-card:hover {
+        transform: translateX(5px);
+        background: rgba(102, 126, 234, 0.2);
+        border-left: 3px solid #667eea;
+    }
+    
+    .platform-badge {
+        display: inline-block;
+        padding: 0.2rem 0.8rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+    }
+    
+    .platform-youtube {
+        background: #ff0000;
+        color: white;
+    }
+    .platform-udemy {
+        background: #a435f0;
+        color: white;
+    }
+    .platform-coursera {
+        background: #0056d2;
+        color: white;
+    }
+    .platform-pluralsight {
+        background: #f05b2c;
+        color: white;
+    }
+    
+    /* Timeline styling */
+    .timeline-item {
+        display: flex;
+        align-items: center;
+        margin: 1rem 0;
+    }
+    
+    .timeline-week {
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        width: 60px;
+        height: 60px;
+        border-radius: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        margin-right: 1rem;
+        flex-shrink: 0;
+    }
+    
     /* Footer */
     .footer {
         text-align: center;
@@ -604,6 +672,8 @@ if 'analysis_done' not in st.session_state:
     st.session_state.education = []
     st.session_state.experience_years = 0
     st.session_state.resume_details = {}
+    st.session_state.learning_path = None
+    st.session_state.target_career = None
 
 # Function to analyze GitHub profile
 def analyze_github_profile(username):
@@ -793,6 +863,7 @@ with st.sidebar:
     st.markdown("<hr>", unsafe_allow_html=True)
     st.markdown(
         "<p style='text-align: center; opacity: 0.7; font-size: 0.9rem;'>"
+        "Powered by Advanced AI<br>v4.0.0</p>",
         "Powered by Advanced AI<br>v3.0.0</p>",
         unsafe_allow_html=True
     )
@@ -826,6 +897,7 @@ elif not st.session_state.analysis_done:
                     <span class="feature-chip">🚀 Career Paths</span>
                     <span class="feature-chip">📄 Resume Parsing</span>
                     <span class="feature-chip">📈 Market Trends</span>
+                    <span class="feature-chip">📚 Learning Paths</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -848,6 +920,8 @@ elif not st.session_state.analysis_done:
         with col_c:
             st.markdown("""
                 <div class="feature-card">
+                    <h3>📚 Learning</h3>
+                    <p>Personalized learning paths with course recommendations</p>
                     <h3>📈 Market</h3>
                     <p>Real-time job market trends, salary data, and skill demand</p>
                 </div>
@@ -938,6 +1012,8 @@ else:
             </div>
         """, unsafe_allow_html=True)
     
+    # Tabs for all methods - Now with 5 tabs including Learning Path
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Overview", "🔧 Skills Deep Dive", "🎯 Career Paths", "📈 Market Trends", "📚 Learning Path"])
     # Tabs for all methods
     tab1, tab2, tab3, tab4 = st.tabs(["📊 Overview", "🔧 Skills Deep Dive", "🎯 Career Paths", "📈 Market Trends"])
     
@@ -1235,6 +1311,122 @@ else:
         else:
             st.info("No skills to analyze. Please add skills first to see market trends.")
     
+    with tab5:
+        st.subheader("📚 Personalized Learning Path")
+        
+        if st.session_state.skills:
+            # Initialize learning path generator
+            learner = LearningPathGenerator()
+            
+            # Get top career matches to suggest target
+            recommender = CareerRecommender()
+            top_careers = recommender.recommend(st.session_state.skills)
+            
+            # Let user select target career
+            career_options = [c['title'] for c in top_careers] if top_careers else []
+            career_options.append("General Skill Advancement")
+            
+            selected_career = st.selectbox(
+                "🎯 Select your target career:",
+                career_options,
+                index=0
+            )
+            
+            if st.button("🚀 Generate Learning Path", use_container_width=True):
+                with st.spinner("Creating personalized learning path..."):
+                    target = selected_career if selected_career != "General Skill Advancement" else None
+                    learning_path = learner.generate_learning_path(
+                        st.session_state.skills, 
+                        target,
+                        st.session_state.proficiency if st.session_state.input_method == "GitHub" else None
+                    )
+                    st.session_state.learning_path = learning_path
+                    st.session_state.target_career = selected_career
+            
+            # Display learning path if generated
+            if st.session_state.learning_path:
+                lp = st.session_state.learning_path
+                
+                # Metrics
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Skills to Learn", lp['total_skills'])
+                with col2:
+                    st.metric("Recommended Courses", lp['total_courses'])
+                with col3:
+                    st.metric("Est. Duration", f"{lp['estimated_weeks']} weeks")
+                
+                st.markdown("---")
+                
+                # Learning path by skill
+                for item in lp['learning_path']:
+                    with st.expander(f"📘 {item['skill']} - Current: {item['current_level'].title()} → Next: {item['next_level'].title()}"):
+                        st.markdown(f"**Estimated time:** {item['estimated_hours']} hours")
+                        
+                        for course in item['recommended_courses']:
+                            # Determine platform class
+                            platform_class = "platform-youtube" if "youtube" in course['url'].lower() or "youtu.be" in course['url'].lower() else \
+                                            "platform-udemy" if "udemy" in course['url'].lower() else \
+                                            "platform-coursera" if "coursera" in course['url'].lower() else \
+                                            "platform-pluralsight" if "pluralsight" in course['url'].lower() else ""
+                            
+                            st.markdown(f"""
+                                <div class="course-card">
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="font-size: 1.1rem; font-weight: 600;">{course['name']}</span>
+                                        <span class="platform-badge {platform_class}">{course['platform']}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; margin-top: 0.5rem;">
+                                        <span>⏱️ {course['duration']}</span>
+                                        <span>{'🆓 Free' if course.get('free', False) else '💰 Paid'}</span>
+                                    </div>
+                                    <div style="margin-top: 0.5rem;">
+                                        <a href="{course['url']}" target="_blank" style="color: #667eea; text-decoration: none;">🔗 View Course →</a>
+                                    </div>
+                                </div>
+                            """, unsafe_allow_html=True)
+                
+                st.markdown("---")
+                st.subheader("🗓️ Your 8-Week Learning Timeline")
+                
+                # Display timeline
+                for item in lp['timeline']:
+                    st.markdown(f"""
+                        <div class="timeline-item">
+                            <div class="timeline-week">Week {item['week']}</div>
+                            <div style="flex-grow: 1;">
+                                <strong style="color: white;">{item['skill']}</strong><br>
+                                <span style="color: rgba(255,255,255,0.7);">{item['course']} ({item['platform']})</span>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                
+                # Free resources section
+                st.markdown("---")
+                st.subheader("🆓 Free Resources")
+                
+                free_resources = []
+                for skill in st.session_state.skills[:3]:
+                    free_resources.extend(learner.get_free_resources(skill))
+                
+                if free_resources:
+                    for resource in free_resources[:5]:
+                        st.markdown(f"""
+                            <div class="course-card">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="font-weight: 600;">{resource['name']}</span>
+                                    <span class="platform-badge platform-youtube">FREE</span>
+                                </div>
+                                <div>
+                                    <a href="{resource['url']}" target="_blank" style="color: #667eea;">Watch now →</a>
+                                </div>
+                            </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("No free resources found for your skills.")
+        else:
+            st.info("No skills to analyze. Please add skills first to generate a learning path.")
+    
     # Reset button
     col1, col2, col3 = st.columns([1,1,1])
     with col2:
@@ -1245,12 +1437,14 @@ else:
             st.session_state.error = None
             st.session_state.education = []
             st.session_state.complex_repo_names = []
+            st.session_state.learning_path = None
             st.rerun()
 
 # Footer
 st.markdown("""
     <div class="footer">
         <p style="font-size: 1.2rem; font-weight: 600;">🚀 AI Developer Career Copilot</p>
+        <p style="font-size: 1rem; opacity: 0.8;">Deep GitHub analysis • Intelligent resume parsing • Real-time market trends • Personalized learning paths</p>
         <p style="font-size: 1rem; opacity: 0.8;">Deep GitHub analysis • Intelligent resume parsing • Real-time market trends</p>
         <p style="font-size: 0.9rem; opacity: 0.6; margin-top: 1rem;">© 2025 • Powered by Advanced AI</p>
     </div>
