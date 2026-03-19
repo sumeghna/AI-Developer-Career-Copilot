@@ -1,4 +1,5 @@
 # app.py - Complete Version with Learning Path Generator
+# app.py - Complete Version with Fixed GitHub Analysis
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -10,6 +11,9 @@ from github.GithubException import GithubException
 from datetime import datetime
 import random
 from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Import from our src modules
 from src.github_analyzer import GitHubAnalyzer
@@ -860,6 +864,7 @@ with st.sidebar:
     st.markdown(
         "<p style='text-align: center; opacity: 0.7; font-size: 0.9rem;'>"
         "Powered by Advanced AI<br>v4.0.0</p>",
+        "Powered by Advanced AI<br>v3.0.0</p>",
         unsafe_allow_html=True
     )
 
@@ -917,6 +922,8 @@ elif not st.session_state.analysis_done:
                 <div class="feature-card">
                     <h3>📚 Learning</h3>
                     <p>Personalized learning paths with course recommendations</p>
+                    <h3>📈 Market</h3>
+                    <p>Real-time job market trends, salary data, and skill demand</p>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -1007,6 +1014,8 @@ else:
     
     # Tabs for all methods - Now with 5 tabs including Learning Path
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Overview", "🔧 Skills Deep Dive", "🎯 Career Paths", "📈 Market Trends", "📚 Learning Path"])
+    # Tabs for all methods
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Overview", "🔧 Skills Deep Dive", "🎯 Career Paths", "📈 Market Trends"])
     
     with tab1:
         col1, col2, col3, col4 = st.columns(4)
@@ -1436,6 +1445,7 @@ st.markdown("""
     <div class="footer">
         <p style="font-size: 1.2rem; font-weight: 600;">🚀 AI Developer Career Copilot</p>
         <p style="font-size: 1rem; opacity: 0.8;">Deep GitHub analysis • Intelligent resume parsing • Real-time market trends • Personalized learning paths</p>
+        <p style="font-size: 1rem; opacity: 0.8;">Deep GitHub analysis • Intelligent resume parsing • Real-time market trends</p>
         <p style="font-size: 0.9rem; opacity: 0.6; margin-top: 1rem;">© 2025 • Powered by Advanced AI</p>
     </div>
 """, unsafe_allow_html=True)
