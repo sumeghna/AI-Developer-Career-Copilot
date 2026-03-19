@@ -1,0 +1,16 @@
+{
+  "last_updated": "2025-03-11",
+  "sources": ["LinkedIn", "Indeed", "Glassdoor"],
+  "top_skills_2025": [
+    {"skill": "Python", "growth": 25, "jobs": 45000},
+    {"skill": "TypeScript", "growth": 35, "jobs": 28000},
+    {"skill": "React", "growth": 30, "jobs": 38000},
+    {"skill": "Docker", "growth": 28, "jobs": 25000},
+    {"skill": "AWS", "growth": 32, "jobs": 42000}
+  ],
+  "remote_trends": {
+    "fully_remote": 35,
+    "hybrid": 42,
+    "onsite": 23
+  }
+}
