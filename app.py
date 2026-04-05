@@ -1,5 +1,4 @@
-# app.py - Complete Version with Learning Path Generator
-# app.py - Complete Version with Fixed GitHub Analysis
+# app.py - Complete Version with Interview Questions
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -12,9 +11,6 @@ from datetime import datetime
 import random
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
-
 # Import from our src modules
 from src.github_analyzer import GitHubAnalyzer
 from src.skill_extractor import SkillExtractor
@@ -22,6 +18,7 @@ from src.career_recommender import CareerRecommender
 from src.resume_parser import ResumeParser
 from src.job_market import JobMarketAnalyzer
 from src.learning_path import LearningPathGenerator
+from src.interview_questions import InterviewQuestionGenerator
 
 # Load environment variables from .env file
 load_dotenv()
@@ -385,15 +382,17 @@ st.markdown("""
         border-radius: 60px;
         border: 1px solid rgba(255,255,255,0.2);
         margin-bottom: 2rem;
+        flex-wrap: wrap;
     }
     
     .stTabs [data-baseweb="tab"] {
         height: 3rem;
         background: transparent;
-        padding: 0 2rem;
+        padding: 0 1.5rem;
         border-radius: 60px;
         transition: all 0.3s ease;
         color: white !important;
+        font-size: 0.9rem;
     }
     
     .stTabs [aria-selected="true"] {
@@ -404,7 +403,6 @@ st.markdown("""
     .stTabs [data-baseweb="tab"] p {
         color: white !important;
         font-weight: 600;
-        font-size: 1rem;
     }
     
     /* Dataframe styling */
@@ -586,6 +584,51 @@ st.markdown("""
         flex-shrink: 0;
     }
     
+    /* Interview question cards */
+    .question-card {
+        background: rgba(255,255,255,0.1);
+        backdrop-filter: blur(5px);
+        padding: 1.5rem;
+        border-radius: 20px;
+        margin: 1rem 0;
+        border: 1px solid rgba(255,255,255,0.2);
+        transition: all 0.3s ease;
+    }
+    
+    .question-card:hover {
+        transform: translateX(5px);
+        background: rgba(102, 126, 234, 0.15);
+    }
+    
+    .difficulty-badge {
+        display: inline-block;
+        padding: 0.2rem 1rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+    
+    .difficulty-easy {
+        background: #10b981;
+        color: white;
+    }
+    .difficulty-medium {
+        background: #f59e0b;
+        color: white;
+    }
+    .difficulty-hard {
+        background: #ef4444;
+        color: white;
+    }
+    
+    .answer-box {
+        background: rgba(0,0,0,0.3);
+        padding: 1rem;
+        border-radius: 10px;
+        margin-top: 1rem;
+        border-left: 3px solid #667eea;
+    }
+    
     /* Footer */
     .footer {
         text-align: center;
@@ -674,6 +717,7 @@ if 'analysis_done' not in st.session_state:
     st.session_state.resume_details = {}
     st.session_state.learning_path = None
     st.session_state.target_career = None
+    st.session_state.interview_set = None
 
 # Function to analyze GitHub profile
 def analyze_github_profile(username):
@@ -863,8 +907,7 @@ with st.sidebar:
     st.markdown("<hr>", unsafe_allow_html=True)
     st.markdown(
         "<p style='text-align: center; opacity: 0.7; font-size: 0.9rem;'>"
-        "Powered by Advanced AI<br>v4.0.0</p>",
-        "Powered by Advanced AI<br>v3.0.0</p>",
+        "Powered by Advanced AI<br>v5.0.0</p>",
         unsafe_allow_html=True
     )
 
@@ -898,6 +941,7 @@ elif not st.session_state.analysis_done:
                     <span class="feature-chip">📄 Resume Parsing</span>
                     <span class="feature-chip">📈 Market Trends</span>
                     <span class="feature-chip">📚 Learning Paths</span>
+                    <span class="feature-chip">🎙️ Interview Prep</span>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -920,10 +964,8 @@ elif not st.session_state.analysis_done:
         with col_c:
             st.markdown("""
                 <div class="feature-card">
-                    <h3>📚 Learning</h3>
-                    <p>Personalized learning paths with course recommendations</p>
-                    <h3>📈 Market</h3>
-                    <p>Real-time job market trends, salary data, and skill demand</p>
+                    <h3>🎙️ Interview</h3>
+                    <p>AI-powered interview questions and mock interviews</p>
                 </div>
             """, unsafe_allow_html=True)
 
@@ -1012,10 +1054,8 @@ else:
             </div>
         """, unsafe_allow_html=True)
     
-    # Tabs for all methods - Now with 5 tabs including Learning Path
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Overview", "🔧 Skills Deep Dive", "🎯 Career Paths", "📈 Market Trends", "📚 Learning Path"])
-    # Tabs for all methods
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Overview", "🔧 Skills Deep Dive", "🎯 Career Paths", "📈 Market Trends"])
+    # Tabs for all methods - Now with 6 tabs including Interview Questions
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["📊 Overview", "🔧 Skills Deep Dive", "🎯 Career Paths", "📈 Market Trends", "📚 Learning Path", "🎙️ Interview Prep"])
     
     with tab1:
         col1, col2, col3, col4 = st.columns(4)
@@ -1210,7 +1250,7 @@ else:
             st.subheader("📊 Skill Demand Trends")
             trends = market.get_skill_trends(st.session_state.skills)
             
-            for trend in trends[:8]:  # Show top 8
+            for trend in trends[:8]:
                 demand_class = "demand-high" if "High" in trend['demand'] else "demand-medium" if "Stable" in trend['demand'] else "demand-low"
                 st.markdown(f"""
                     <div class="trend-card">
@@ -1229,7 +1269,6 @@ else:
             st.markdown("---")
             st.subheader("💰 Salary Comparison by Role")
             
-            # Get top career matches
             recommender = CareerRecommender()
             top_careers = recommender.recommend(st.session_state.skills)[:3]
             
@@ -1247,7 +1286,6 @@ else:
                         })
                 
                 if salary_data:
-                    # Create salary progression chart
                     df_salary = pd.DataFrame(salary_data)
                     fig = go.Figure()
                     
@@ -1272,42 +1310,6 @@ else:
                     )
                     
                     st.plotly_chart(fig, use_container_width=True)
-            
-            # Location comparison
-            st.markdown("---")
-            st.subheader("🌍 Top Locations by Salary")
-            
-            if top_careers:
-                role = top_careers[0]['title']
-                locations = market.get_top_locations_for_role(role)
-                
-                if locations:
-                    df_locations = pd.DataFrame(locations)
-                    fig = px.bar(
-                        df_locations,
-                        x='location',
-                        y='avg_salary',
-                        color='avg_salary',
-                        color_continuous_scale=['#667eea', '#764ba2'],
-                        title=f"Average Salary for {role} by Location",
-                        labels={'avg_salary': 'Salary (USD)', 'location': 'Location'}
-                    )
-                    
-                    fig.update_traces(
-                        texttemplate='$%{y:,.0f}',
-                        textposition='outside',
-                    )
-                    
-                    fig.update_layout(
-                        height=400,
-                        plot_bgcolor='rgba(0,0,0,0)',
-                        paper_bgcolor='rgba(0,0,0,0)',
-                        font=dict(color='white'),
-                        xaxis=dict(tickfont=dict(color='white')),
-                        yaxis=dict(tickfont=dict(color='white'))
-                    )
-                    
-                    st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("No skills to analyze. Please add skills first to see market trends.")
     
@@ -1315,24 +1317,21 @@ else:
         st.subheader("📚 Personalized Learning Path")
         
         if st.session_state.skills:
-            # Initialize learning path generator
             learner = LearningPathGenerator()
-            
-            # Get top career matches to suggest target
             recommender = CareerRecommender()
             top_careers = recommender.recommend(st.session_state.skills)
             
-            # Let user select target career
             career_options = [c['title'] for c in top_careers] if top_careers else []
             career_options.append("General Skill Advancement")
             
             selected_career = st.selectbox(
                 "🎯 Select your target career:",
                 career_options,
-                index=0
+                index=0,
+                key="learning_path_career"
             )
             
-            if st.button("🚀 Generate Learning Path", use_container_width=True):
+            if st.button("🚀 Generate Learning Path", key="generate_lp", use_container_width=True):
                 with st.spinner("Creating personalized learning path..."):
                     target = selected_career if selected_career != "General Skill Advancement" else None
                     learning_path = learner.generate_learning_path(
@@ -1343,11 +1342,9 @@ else:
                     st.session_state.learning_path = learning_path
                     st.session_state.target_career = selected_career
             
-            # Display learning path if generated
             if st.session_state.learning_path:
                 lp = st.session_state.learning_path
                 
-                # Metrics
                 col1, col2, col3 = st.columns(3)
                 with col1:
                     st.metric("Skills to Learn", lp['total_skills'])
@@ -1358,13 +1355,11 @@ else:
                 
                 st.markdown("---")
                 
-                # Learning path by skill
                 for item in lp['learning_path']:
                     with st.expander(f"📘 {item['skill']} - Current: {item['current_level'].title()} → Next: {item['next_level'].title()}"):
                         st.markdown(f"**Estimated time:** {item['estimated_hours']} hours")
                         
                         for course in item['recommended_courses']:
-                            # Determine platform class
                             platform_class = "platform-youtube" if "youtube" in course['url'].lower() or "youtu.be" in course['url'].lower() else \
                                             "platform-udemy" if "udemy" in course['url'].lower() else \
                                             "platform-coursera" if "coursera" in course['url'].lower() else \
@@ -1389,7 +1384,6 @@ else:
                 st.markdown("---")
                 st.subheader("🗓️ Your 8-Week Learning Timeline")
                 
-                # Display timeline
                 for item in lp['timeline']:
                     st.markdown(f"""
                         <div class="timeline-item">
@@ -1401,7 +1395,6 @@ else:
                         </div>
                     """, unsafe_allow_html=True)
                 
-                # Free resources section
                 st.markdown("---")
                 st.subheader("🆓 Free Resources")
                 
@@ -1427,6 +1420,133 @@ else:
         else:
             st.info("No skills to analyze. Please add skills first to generate a learning path.")
     
+    with tab6:
+        st.subheader("🎙️ AI Interview Preparation")
+        
+        if st.session_state.skills:
+            # Initialize interview generator
+            interviewer = InterviewQuestionGenerator()
+            
+            # Experience level selector
+            exp_level_options = ["beginner", "intermediate", "senior"]
+            selected_exp = st.selectbox(
+                "📊 Your Experience Level:",
+                exp_level_options,
+                index=1,
+                key="interview_exp_level"
+            )
+            
+            # Generate interview questions
+            if st.button("🎯 Generate Interview Questions", key="generate_interview", use_container_width=True):
+                with st.spinner("Generating personalized interview questions..."):
+                    interview_set = interviewer.generate_interview_set(
+                        st.session_state.skills,
+                        selected_exp
+                    )
+                    st.session_state.interview_set = interview_set
+            
+            # Display interview set
+            if st.session_state.interview_set:
+                interview = st.session_state.interview_set
+                
+                # Stats
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Technical Questions", interview['stats']['technical_count'])
+                with col2:
+                    st.metric("Behavioral Questions", interview['stats']['behavioral_count'])
+                with col3:
+                    easy_count = interview['stats']['difficulty_breakdown'].get('easy', 0)
+                    medium_count = interview['stats']['difficulty_breakdown'].get('medium', 0)
+                    hard_count = interview['stats']['difficulty_breakdown'].get('hard', 0)
+                    st.metric("Difficulty", f"E:{easy_count} M:{medium_count} H:{hard_count}")
+                
+                st.markdown("---")
+                
+                # Technical Questions Section
+                st.subheader("💻 Technical Questions")
+                for i, q in enumerate(interview['technical_questions'][:5], 1):
+                    diff_class = f"difficulty-{q.get('difficulty', 'medium')}"
+                    st.markdown(f"""
+                        <div class="question-card">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 1.1rem; font-weight: 600;">Q{i}. {q['question']}</span>
+                                <span class="difficulty-badge {diff_class}">{q.get('difficulty', 'medium').upper()}</span>
+                            </div>
+                            <div style="margin-top: 0.5rem;">
+                                <span style="color: rgba(255,255,255,0.7); font-size: 0.9rem;">Skill: {q['skill']} • Level: {q['level']}</span>
+                            </div>
+                            <div style="margin-top: 0.8rem;">
+                                <details>
+                                    <summary style="color: #667eea; cursor: pointer;">📖 View Answer</summary>
+                                    <div class="answer-box">
+                                        <strong>Answer:</strong> {q.get('answer', 'Use STAR method to structure your answer.')}
+                                        <br><br>
+                                        <strong>Tips:</strong>
+                                        <ul>
+                                            {''.join([f'<li>{tip}</li>' for tip in q.get('tips', [])])}
+                                        </ul>
+                                    </div>
+                                </details>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                
+                st.markdown("---")
+                
+                # Behavioral Questions Section
+                st.subheader("🤝 Behavioral Questions")
+                for i, q in enumerate(interview['behavioral_questions'][:3], 1):
+                    st.markdown(f"""
+                        <div class="question-card">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 1.1rem; font-weight: 600;">B{i}. {q['question']}</span>
+                                <span class="difficulty-badge difficulty-medium">BEHAVIORAL</span>
+                            </div>
+                            <div style="margin-top: 0.8rem;">
+                                <details>
+                                    <summary style="color: #667eea; cursor: pointer;">💡 Tips</summary>
+                                    <div class="answer-box">
+                                        <strong>Tips:</strong>
+                                        <ul>
+                                            {''.join([f'<li>{tip}</li>' for tip in q.get('tips', ['Use STAR method', 'Be specific', 'Show impact'])])}
+                                        </ul>
+                                    </div>
+                                </details>
+                            </div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                
+                st.markdown("---")
+                
+                # Tips Section
+                st.subheader("💡 Interview Tips")
+                tips_cols = st.columns(2)
+                for i, tip in enumerate(interview['tips']):
+                    with tips_cols[i % 2]:
+                        st.markdown(f"✅ {tip}")
+                
+                # Mock Interview Button
+                st.markdown("---")
+                if st.button("🎭 Start Mock Interview", key="mock_interview", use_container_width=True):
+                    mock = interviewer.get_mock_interview(st.session_state.skills)
+                    st.session_state.mock_interview = mock
+                
+                if st.session_state.get('mock_interview'):
+                    mock = st.session_state.mock_interview
+                    st.success(f"🎤 Mock Interview Session ({mock['duration_minutes']} minutes)")
+                    
+                    for section in mock['sections']:
+                        st.markdown(f"""
+                            <div style="background: rgba(255,255,255,0.05); padding: 1rem; border-radius: 15px; margin: 1rem 0;">
+                                <h4 style="color: #667eea;">{section['name']} ({section['duration']} min)</h4>
+                                <p>{section.get('prompt', '')}</p>
+                                {' '.join([f'<p>• {q["question"]}</p>' for q in section.get('questions', [])]) if section.get('questions') else ''}
+                            </div>
+                        """, unsafe_allow_html=True)
+        else:
+            st.info("No skills to analyze. Please add skills first to generate interview questions.")
+    
     # Reset button
     col1, col2, col3 = st.columns([1,1,1])
     with col2:
@@ -1438,14 +1558,14 @@ else:
             st.session_state.education = []
             st.session_state.complex_repo_names = []
             st.session_state.learning_path = None
+            st.session_state.interview_set = None
             st.rerun()
 
 # Footer
 st.markdown("""
     <div class="footer">
         <p style="font-size: 1.2rem; font-weight: 600;">🚀 AI Developer Career Copilot</p>
-        <p style="font-size: 1rem; opacity: 0.8;">Deep GitHub analysis • Intelligent resume parsing • Real-time market trends • Personalized learning paths</p>
-        <p style="font-size: 1rem; opacity: 0.8;">Deep GitHub analysis • Intelligent resume parsing • Real-time market trends</p>
+        <p style="font-size: 1rem; opacity: 0.8;">Deep GitHub analysis • Intelligent resume parsing • Real-time market trends • Personalized learning paths • AI interview preparation</p>
         <p style="font-size: 0.9rem; opacity: 0.6; margin-top: 1rem;">© 2025 • Powered by Advanced AI</p>
     </div>
 """, unsafe_allow_html=True)

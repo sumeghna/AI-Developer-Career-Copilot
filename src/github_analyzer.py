@@ -1,15 +1,63 @@
-# src/github_analyzer.py - Fixed to get ALL repositories and track complex projects
+# src/github_analyzer.py - Optimized with parallel processing and caching
+import json
+import os
 from github import Github
 from github.GithubException import GithubException
+from datetime import datetime, timedelta
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 
 class GitHubAnalyzer:
     def __init__(self, token):
         self.token = token
         self.g = Github(token)
+        self.cache_file = "data/github_cache.json"
+        self.cache_duration = timedelta(hours=24)  # Cache for 24 hours
+        self.executor = ThreadPoolExecutor(max_workers=10)  # Parallel processing
+    
+    def _get_cached_result(self, username):
+        """Get cached analysis result if not expired"""
+        try:
+            if os.path.exists(self.cache_file):
+                with open(self.cache_file, 'r') as f:
+                    cache = json.load(f)
+                    if username in cache:
+                        cached_time = datetime.fromisoformat(cache[username]['timestamp'])
+                        if datetime.now() - cached_time < self.cache_duration:
+                            print(f"✅ Using cached data for {username}")
+                            return cache[username]['data']
+        except Exception as e:
+            print(f"Cache read error: {e}")
+        return None
+    
+    def _cache_result(self, username, data):
+        """Save analysis result to cache"""
+        try:
+            cache = {}
+            if os.path.exists(self.cache_file):
+                with open(self.cache_file, 'r') as f:
+                    cache = json.load(f)
+            
+            cache[username] = {
+                'timestamp': datetime.now().isoformat(),
+                'data': data
+            }
+            
+            # Keep only last 50 users in cache
+            if len(cache) > 50:
+                # Remove oldest entries
+                sorted_items = sorted(cache.items(), 
+                                     key=lambda x: x[1]['timestamp'])
+                for i in range(len(cache) - 50):
+                    del cache[sorted_items[i][0]]
+            
+            with open(self.cache_file, 'w') as f:
+                json.dump(cache, f)
+        except Exception as e:
+            print(f"Cache write error: {e}")
     
     def get_user_info(self, username):
-        """Get basic user information"""
+        """Get basic user information (sync, fast)"""
         try:
             user = self.g.get_user(username)
             return {
@@ -21,98 +69,125 @@ class GitHubAnalyzer:
                 'bio': user.bio,
                 'company': user.company,
                 'location': user.location,
-                'created_at': user.created_at,
-                'updated_at': user.updated_at
+                'created_at': user.created_at.isoformat() if user.created_at else None,
+                'updated_at': user.updated_at.isoformat() if user.updated_at else None
             }
         except GithubException as e:
             return {"error": str(e)}
     
-    def get_all_repos(self, username):
-        """Get ALL repositories (handles pagination)"""
+    def get_all_repos_parallel(self, username, progress_callback=None):
+        """Get ALL repositories using parallel processing"""
         try:
             user = self.g.get_user(username)
-            all_repos = []
             
-            # Get all repositories (this handles pagination automatically)
+            # Get all repositories
             repos = user.get_repos()
+            all_repos = list(repos)
             
-            # Convert to list to get all items
-            for repo in repos:
-                all_repos.append(repo)
+            total_repos = len(all_repos)
+            if progress_callback:
+                progress_callback("fetching", 0, total_repos)
             
-            print(f"✅ Found total {len(all_repos)} repositories for {username}")
-            return all_repos
+            # Process repos in parallel
+            repo_data_list = []
+            completed = 0
             
-        except GithubException as e:
-            print(f"❌ Error getting repos: {e}")
-            return []
-    
-    def analyze_repositories_deep(self, username):
-        """Deep analysis of repositories to determine actual skill level"""
-        try:
-            # Get ALL repositories
-            all_repos = self.get_all_repos(username)
-            
-            repos_data = []
-            total_commits = 0
-            total_prs = 0
-            total_issues = 0
-            complex_projects = 0
-            complex_repo_names = []  # Track complex repo names
-            languages = {}
-            original_repos_count = 0
-            fork_count = 0
-            
-            for repo in all_repos:
-                # Count forks vs originals
+            # Use ThreadPoolExecutor for parallel API calls
+            def process_repo(repo):
                 if repo.fork:
-                    fork_count += 1
-                    continue  # Skip forked repos for skill analysis
+                    return None
                 
-                original_repos_count += 1
+                # Get languages (fast API call)
+                try:
+                    repo_languages = repo.get_languages()
+                except:
+                    repo_languages = {}
                 
-                # Get languages used in this repo
-                repo_languages = repo.get_languages()
-                for lang, bytes_count in repo_languages.items():
-                    if lang in languages:
-                        languages[lang] += 1
-                    else:
-                        languages[lang] = 1
+                # Get commit count (just the count, not all commits)
+                try:
+                    commits = repo.get_commits().totalCount
+                except:
+                    commits = 0
                 
-                # Analyze repo complexity
-                repo_data = {
+                return {
                     'name': repo.name,
                     'description': repo.description,
                     'language': repo.language,
                     'stars': repo.stargazers_count,
                     'forks': repo.forks_count,
-                    'size': repo.size,  # Size in KB
-                    'has_wiki': repo.has_wiki,
-                    'has_pages': repo.has_pages,
-                    'created_at': repo.created_at,
-                    'updated_at': repo.updated_at,
-                    'is_fork': repo.fork
+                    'size': repo.size,
+                    'is_fork': repo.fork,
+                    'languages': repo_languages,
+                    'commit_count': commits,
+                    'created_at': repo.created_at.isoformat() if repo.created_at else None,
+                    'updated_at': repo.updated_at.isoformat() if repo.updated_at else None
                 }
-                
-                # Check for complexity indicators (large projects)
-                if repo.size > 1000:  # Large project (>1MB)
-                    complex_projects += 1
-                    complex_repo_names.append(repo.name)  # Track complex repo name
-                
-                # Get commit count (approximate)
-                try:
-                    commits = repo.get_commits().totalCount
-                    repo_data['commit_count'] = commits
-                    total_commits += commits
-                except:
-                    repo_data['commit_count'] = 0
-                
-                repos_data.append(repo_data)
             
-            # Calculate experience level based on multiple factors
+            # Process repos in parallel with progress
+            with ThreadPoolExecutor(max_workers=10) as executor:
+                future_to_repo = {executor.submit(process_repo, repo): repo for repo in all_repos}
+                
+                for future in as_completed(future_to_repo):
+                    result = future.result()
+                    if result:
+                        repo_data_list.append(result)
+                    completed += 1
+                    if progress_callback:
+                        progress_callback("processing", completed, total_repos)
+            
+            return repo_data_list, total_repos
+            
+        except GithubException as e:
+            print(f"Error getting repos: {e}")
+            return [], 0
+    
+    def analyze_repositories_deep(self, username, progress_callback=None):
+        """Deep analysis with parallel processing and caching"""
+        try:
+            # Check cache first
+            cached = self._get_cached_result(username)
+            if cached:
+                return cached
+            
+            # Get all repos with parallel processing
+            if progress_callback:
+                progress_callback("fetching_repos", 0, 100)
+            
+            repo_data_list, total_repos = self.get_all_repos_parallel(username, progress_callback)
+            
+            # Analyze data
+            languages = {}
+            original_repos_count = 0
+            fork_count = 0
+            complex_projects = 0
+            complex_repo_names = []
+            total_commits = 0
+            total_stars = 0
+            
+            for repo_data in repo_data_list:
+                original_repos_count += 1
+                
+                # Languages
+                for lang, count in repo_data.get('languages', {}).items():
+                    if lang in languages:
+                        languages[lang] += 1
+                    else:
+                        languages[lang] = 1
+                
+                # Complex projects (size > 1MB)
+                if repo_data.get('size', 0) > 1000:
+                    complex_projects += 1
+                    complex_repo_names.append(repo_data['name'])
+                
+                total_commits += repo_data.get('commit_count', 0)
+                total_stars += repo_data.get('stars', 0)
+            
+            fork_count = total_repos - original_repos_count
+            
+            # Calculate experience score
             experience_score = 0
             
-            # Factor 1: Number of original repos (not forks)
+            # Factor 1: Original repos
             if original_repos_count > 20:
                 experience_score += 40
             elif original_repos_count > 10:
@@ -142,8 +217,7 @@ class GitHubAnalyzer:
             elif total_commits > 50:
                 experience_score += 10
             
-            # Factor 4: Stars received (community recognition)
-            total_stars = sum(r.get('stars', 0) for r in repos_data)
+            # Factor 4: Stars received
             if total_stars > 500:
                 experience_score += 15
             elif total_stars > 100:
@@ -165,14 +239,14 @@ class GitHubAnalyzer:
                 level = "🆕 Novice"
                 level_description = f"Just starting with {original_repos_count} projects"
             
-            return {
-                "repos": repos_data[:10],  # Top 10 repos for display
+            result = {
+                "repos": repo_data_list[:10],  # Top 10 repos for display
                 "languages": languages,
-                "total_repos": len(all_repos),
+                "total_repos": total_repos,
                 "original_repos": original_repos_count,
                 "forked_repos": fork_count,
                 "complex_projects": complex_projects,
-                "complex_repo_names": complex_repo_names[:5],  # Top 5 complex repos
+                "complex_repo_names": complex_repo_names[:5],
                 "total_commits": total_commits,
                 "total_stars": total_stars,
                 "experience_score": experience_score,
@@ -180,7 +254,12 @@ class GitHubAnalyzer:
                 "level_description": level_description
             }
             
-        except GithubException as e:
+            # Cache the result
+            self._cache_result(username, result)
+            
+            return result
+            
+        except Exception as e:
             return {"error": str(e)}
     
     def extract_skills_with_context(self, analysis_result):
@@ -190,7 +269,6 @@ class GitHubAnalyzer:
         
         # Add languages with context
         for lang, count in analysis_result.get('languages', {}).items():
-            # More repos in a language = higher proficiency
             if count >= 8:
                 proficiency = "Expert"
             elif count >= 4:
